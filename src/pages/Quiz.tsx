@@ -18,6 +18,9 @@ const Quiz = () => {
     currentQuestionIndex,
     setCurrentQuestionIndex,
     submitAnswer,
+    submitPlayerAnswer,
+    processRoundResults,
+    getRoundWinner,
     quizCompleted,
     setQuizCompleted
   } = useQuiz();
@@ -48,8 +51,17 @@ const Quiz = () => {
   }, [nickname, selectedTeam, navigate]);
 
   const handleAnswerSubmit = (answer: string, timeRemaining: number) => {
-    if (currentQuestion) {
+    if (currentQuestion && selectedTeam) {
+      // Keep existing answer submission
       submitAnswer(currentQuestion.id, answer, timeRemaining);
+      
+      // Add new player answer for matching
+      submitPlayerAnswer({
+        teamName: selectedTeam.name,
+        roundNumber: currentRound,
+        questionId: currentQuestion.id,
+        answer: answer
+      });
       
       // Short delay before moving to next question
       setTimeout(() => {
@@ -58,7 +70,8 @@ const Quiz = () => {
           setCurrentQuestionIndex(currentQuestionIndex + 1);
           setQuestionKey(prev => prev + 1); // Force re-render of QuestionCard
         } else {
-          // Round complete - show summary
+          // Process round results before showing summary
+          processRoundResults(currentRound);
           setShowingSummary(true);
         }
       }, 1000);

@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, ReactNode } from 'react';
 
 interface Team {
@@ -21,6 +20,32 @@ interface Answer {
   timeRemaining: number;
 }
 
+interface PlayerAnswer {
+  playerId: string;
+  teamName: string;
+  roundNumber: number;
+  questionId: string;
+  answer: string;
+}
+
+interface RoundResult {
+  roundNumber: number;
+  winningTeam: string;
+  matchedAnswers: {
+    [teamName: string]: {
+      answer: string;
+      players: string[];
+      count: number;
+    }[];
+  };
+}
+
+interface TeamScore {
+  teamName: string;
+  roundsWon: number[];
+  diceRollsRemaining: number;
+}
+
 interface QuizContextProps {
   nickname: string;
   setNickname: (nickname: string) => void;
@@ -38,6 +63,13 @@ interface QuizContextProps {
   quizCompleted: boolean;
   setQuizCompleted: (completed: boolean) => void;
   resetQuiz: () => void;
+  playerAnswers: PlayerAnswer[];
+  roundResults: RoundResult[];
+  teamScores: TeamScore[];
+  submitPlayerAnswer: (answer: Omit<PlayerAnswer, 'playerId'>) => void;
+  processRoundResults: (roundNumber: number) => void;
+  getRoundWinner: (roundNumber: number) => string | null;
+  getDiceRolls: (teamName: string) => number;
 }
 
 const QuizContext = createContext<QuizContextProps | undefined>(undefined);
@@ -49,6 +81,9 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [userAnswers, setUserAnswers] = useState<Answer[]>([]);
   const [quizCompleted, setQuizCompleted] = useState<boolean>(false);
+  const [playerAnswers, setPlayerAnswers] = useState<PlayerAnswer[]>([]);
+  const [roundResults, setRoundResults] = useState<RoundResult[]>([]);
+  const [teamScores, setTeamScores] = useState<TeamScore[]>([]);
   
   const [teams, setTeams] = useState<Team[]>([
     { id: 'crimson', name: 'Team Crimson', color: 'bg-red-600', playerCount: 3, maxPlayers: 7 },
@@ -100,6 +135,89 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
     setQuizCompleted(false);
   };
 
+  const submitPlayerAnswer = (answer: Omit<PlayerAnswer, 'playerId'>) => {
+    const playerId = nickname; // Using nickname as playerId for simplicity
+    setPlayerAnswers(prev => [...prev, { ...answer, playerId }]);
+  };
+
+  const processRoundResults = (roundNumber: number) => {
+    const roundAnswers = playerAnswers.filter(a => a.roundNumber === roundNumber);
+    
+    // Group answers by team
+    const answersByTeam: { [teamName: string]: { [answer: string]: string[] } } = {};
+    roundAnswers.forEach(answer => {
+      if (!answersByTeam[answer.teamName]) {
+        answersByTeam[answer.teamName] = {};
+      }
+      if (!answersByTeam[answer.teamName][answer.answer]) {
+        answersByTeam[answer.teamName][answer.answer] = [];
+      }
+      answersByTeam[answer.teamName][answer.answer].push(answer.playerId);
+    });
+
+    // Find matching answers for each team
+    const matchedAnswers: RoundResult['matchedAnswers'] = {};
+    let maxMatches = 0;
+    let winningTeam = '';
+
+    Object.entries(answersByTeam).forEach(([teamName, answers]) => {
+      // Only consider answers that have at least 2 players matching
+      matchedAnswers[teamName] = Object.entries(answers)
+        .map(([answer, players]) => ({
+          answer,
+          players,
+          count: players.length
+        }))
+        .filter(match => match.count >= 2) // Only keep answers with 2 or more matches
+        .sort((a, b) => b.count - a.count);
+
+      // Update winning team if this team has more matches and at least 2 players matched
+      const teamMaxMatches = matchedAnswers[teamName][0]?.count ?? 0;
+      if (teamMaxMatches > maxMatches && teamMaxMatches >= 2) {
+        maxMatches = teamMaxMatches;
+        winningTeam = teamName;
+      }
+    });
+
+    const roundResult: RoundResult = {
+      roundNumber,
+      winningTeam,
+      matchedAnswers
+    };
+
+    setRoundResults(prev => [...prev, roundResult]);
+
+    // Update team scores
+    setTeamScores(prev => {
+      const existing = prev.find(s => s.teamName === winningTeam);
+      if (existing) {
+        return prev.map(score => 
+          score.teamName === winningTeam
+            ? {
+                ...score,
+                roundsWon: [...score.roundsWon, roundNumber],
+                diceRollsRemaining: score.diceRollsRemaining + 1
+              }
+            : score
+        );
+      }
+      return [...prev, {
+        teamName: winningTeam,
+        roundsWon: [roundNumber],
+        diceRollsRemaining: 1
+      }];
+    });
+  };
+
+  const getRoundWinner = (roundNumber: number) => {
+    const result = roundResults.find(r => r.roundNumber === roundNumber);
+    return result?.winningTeam ?? null;
+  };
+
+  const getDiceRolls = (teamName: string) => {
+    return teamScores.find(s => s.teamName === teamName)?.diceRollsRemaining ?? 0;
+  };
+
   return (
     <QuizContext.Provider value={{ 
       nickname, 
@@ -117,7 +235,14 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
       submitAnswer,
       quizCompleted,
       setQuizCompleted,
-      resetQuiz
+      resetQuiz,
+      playerAnswers,
+      roundResults,
+      teamScores,
+      submitPlayerAnswer,
+      processRoundResults,
+      getRoundWinner,
+      getDiceRolls
     }}>
       {children}
     </QuizContext.Provider>
