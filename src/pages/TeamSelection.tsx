@@ -27,7 +27,7 @@ const TeamSelection = () => {
   const handleJoinTeam = () => {
     if (selectedTeamId) {
       joinTeam(selectedTeamId);
-      navigate("/quiz");
+      navigate("/onboarding");
     }
   };
 

@@ -8,6 +8,7 @@ import { QuizProvider } from "./context/QuizContext";
 import Index from "./pages/Index";
 import Quiz from "./pages/Quiz";
 import TeamSelection from "./pages/TeamSelection";
+import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/team-selection" element={<TeamSelection />} />
+            <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/quiz" element={<Quiz />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
