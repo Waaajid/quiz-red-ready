@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuiz } from "@/context/QuizContext";
@@ -23,7 +22,7 @@ const Index = () => {
     }
     
     setNickname(inputValue.trim());
-    navigate("/quiz");
+    navigate("/team-selection");
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
