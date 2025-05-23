@@ -26,6 +26,7 @@ const Quiz = () => {
   
   // States for the component
   const [showingSummary, setShowingSummary] = useState(false);
+  const [questionKey, setQuestionKey] = useState(0);
   
   // Filter questions for current round
   const roundQuestions = questions.filter(q => q.roundId === currentRound);
@@ -55,11 +56,12 @@ const Quiz = () => {
         if (currentQuestionIndex < questionsPerRound - 1) {
           // Go to next question in the round
           setCurrentQuestionIndex(currentQuestionIndex + 1);
+          setQuestionKey(prev => prev + 1); // Force re-render of QuestionCard
         } else {
           // Round complete - show summary
           setShowingSummary(true);
         }
-      }, 500);
+      }, 1000);
     }
   };
   
@@ -68,6 +70,7 @@ const Quiz = () => {
       setCurrentRound(currentRound + 1);
       setCurrentQuestionIndex(0);
       setShowingSummary(false);
+      setQuestionKey(prev => prev + 1); // Force re-render of QuestionCard
     } else {
       // Quiz complete
       setQuizCompleted(true);
@@ -146,6 +149,7 @@ const Quiz = () => {
             />
           ) : currentQuestion ? (
             <QuestionCard
+              key={questionKey}
               questionNumber={currentQuestionIndex + 1}
               questionText={currentQuestion.text}
               onSubmit={handleAnswerSubmit}

@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,22 +19,57 @@ const QuestionCard = ({
   timerSeconds
 }: QuestionCardProps) => {
   const [answer, setAnswer] = useState('');
-  const [timeLeft, setTimeLeft] = useState(timerSeconds);
   const [isAnswered, setIsAnswered] = useState(false);
   const [timerComplete, setTimerComplete] = useState(false);
+  const [canProceed, setCanProceed] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(timerSeconds);
+  
+  // Reset states when question changes
+  useEffect(() => {
+    setAnswer('');
+    setIsAnswered(false);
+    setTimerComplete(false);
+    setCanProceed(false);
+    setTimeRemaining(timerSeconds);
+  }, [questionNumber, questionText, timerSeconds]);
   
   const handleTimerComplete = () => {
+    setTimerComplete(true);
     if (!isAnswered) {
-      setTimerComplete(true);
+      // Auto-submit empty answer when timer completes
+      handleSubmit();
     }
   };
   
   const handleSubmit = () => {
-    if (!isAnswered && (answer.trim() || timerComplete)) {
+    if (!isAnswered) {
       setIsAnswered(true);
-      onSubmit(answer.trim(), timeLeft);
+      onSubmit(answer.trim(), timeRemaining);
+      
+      // If timer hasn't completed yet, wait for it
+      if (!timerComplete) {
+        // Timer will continue running and enable "Next" when it completes
+        return;
+      } else {
+        // Timer already completed, can proceed immediately
+        setCanProceed(true);
+      }
     }
   };
+  
+  const handleNext = () => {
+    if (canProceed || timerComplete) {
+      // The parent component will handle moving to next question
+      onSubmit(answer.trim(), timeRemaining);
+    }
+  };
+  
+  // Enable "Next" button when timer completes (whether answered or not)
+  useEffect(() => {
+    if (timerComplete) {
+      setCanProceed(true);
+    }
+  }, [timerComplete]);
   
   return (
     <Card className="w-full bg-white/10 backdrop-blur-sm border-none shadow-lg">
@@ -47,8 +82,10 @@ const QuestionCard = ({
         </div>
         
         <CountdownTimer 
+          key={`${questionNumber}-${questionText}`}
           seconds={timerSeconds} 
-          onComplete={handleTimerComplete} 
+          onComplete={handleTimerComplete}
+          onTick={setTimeRemaining}
         />
         
         <div className="space-y-4 pt-4">
@@ -57,19 +94,19 @@ const QuestionCard = ({
             value={answer}
             onChange={(e) => !isAnswered && setAnswer(e.target.value)}
             className="bg-white/20 border-white/30 text-white placeholder:text-white/60"
-            disabled={isAnswered}
+            disabled={isAnswered && canProceed}
           />
           
           <Button
-            onClick={handleSubmit}
-            disabled={isAnswered}
+            onClick={isAnswered ? handleNext : handleSubmit}
+            disabled={isAnswered && !canProceed}
             className={`w-full ${
-              isAnswered 
+              (isAnswered && !canProceed)
                 ? 'bg-quiz-red-600 opacity-50' 
                 : 'bg-quiz-red-600 hover:bg-quiz-red-700'
             }`}
           >
-            {timerComplete || isAnswered ? "Next" : "Submit Answer"}
+            {isAnswered ? (canProceed ? "Next" : `Wait ${Math.max(0, timeRemaining)}s...`) : "Submit Answer"}
           </Button>
         </div>
       </CardContent>
