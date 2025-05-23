@@ -1,4 +1,3 @@
-
 import { useQuiz } from "@/context/QuizContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { useEffect } from "react";
 
 const Onboarding = () => {
-  const { nickname, selectedTeam } = useQuiz();
+  const { nickname, selectedTeam, resetQuiz } = useQuiz();
   const navigate = useNavigate();
   
   // Redirect if user hasn't completed previous steps
@@ -19,6 +18,8 @@ const Onboarding = () => {
   }, [nickname, selectedTeam, navigate]);
 
   const handleStartGame = () => {
+    // Reset quiz state before starting
+    resetQuiz();
     navigate("/quiz");
   };
 
@@ -73,7 +74,7 @@ const Onboarding = () => {
                 <div className="bg-quiz-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm mt-1">
                   1
                 </div>
-                <p>You'll play <span className="font-bold">4 rounds</span> with <span className="font-bold">4 questions</span> each.</p>
+                <p>You'll play <span className="font-bold">3 rounds</span> with <span className="font-bold">4 questions</span> each.</p>
               </div>
               
               <div className="flex items-start space-x-3">
