@@ -44,13 +44,18 @@ export interface GameSession {
 
 export const createGameSession = async (sessionId: string, hostId: string, nickname: string): Promise<void> => {
   const sessionRef = ref(db, `sessions/${sessionId}`);
-  await set(sessionRef, {
+  const initialSession: GameSession = {
     id: sessionId,
     hostId,
     status: 'waiting',
     currentRound: 1,
     currentQuestionIndex: 0,
-    teams: {},
+    teams: {
+      crimson: { name: 'Team Crimson', color: 'bg-red-600', playerCount: 0, maxPlayers: 7, answers: {} },
+      scarlet: { name: 'Team Scarlet', color: 'bg-red-500', playerCount: 0, maxPlayers: 7, answers: {} },
+      ruby: { name: 'Team Ruby', color: 'bg-red-700', playerCount: 0, maxPlayers: 7, answers: {} },
+      garnet: { name: 'Team Garnet', color: 'bg-red-800', playerCount: 0, maxPlayers: 7, answers: {} }
+    },
     players: {
       [hostId]: {
         nickname,
@@ -64,7 +69,8 @@ export const createGameSession = async (sessionId: string, hostId: string, nickn
     currentState: {
       phase: 'team-selection'
     }
-  });
+  };
+  await set(sessionRef, initialSession);
 };
 
 export const joinGameSession = async (
@@ -73,34 +79,27 @@ export const joinGameSession = async (
   nickname: string,
   teamId: string
 ): Promise<void> => {
+  const sessionRef = ref(db, `sessions/${sessionId}`);
+  const sessionSnapshot = await get(sessionRef);
+  const session = sessionSnapshot.val() as GameSession;
+
+  if (!session) {
+    throw new Error('Session not found');
+  }
+
+  if (session.status !== 'waiting') {
+    throw new Error('Cannot join a game in progress');
+  }
+
+  // Add player to session
   const playerRef = ref(db, `sessions/${sessionId}/players/${playerId}`);
-  const teamRef = ref(db, `sessions/${sessionId}/teams/${teamId}`);
-  
   await set(playerRef, {
     nickname,
-    teamId,
     isHost: false,
     connected: true,
+    teamId,
     answers: {}
   });
-  
-  onValue(teamRef, (snapshot) => {
-    const team = snapshot.val();
-    if (!team) {
-      set(teamRef, {
-        name: `Team ${teamId}`,
-        color: `bg-quiz-red-${Math.floor(Math.random() * 3 + 6)}00`,
-        playerCount: 1,
-        maxPlayers: 7,
-        answers: {}
-      });
-    } else {
-      set(teamRef, {
-        ...team,
-        playerCount: (team.playerCount || 0) + 1
-      });
-    }
-  }, { onlyOnce: true });
 };
 
 export const subscribeToGameSession = (
@@ -167,28 +166,41 @@ export const updateGameState = async (
     throw new Error('Session not found');
   }
   
-  // Create a new state object that includes both currentState changes and root level updates
-  const updatedState = {
-    ...session,
+  // Create updates object with correct typing
+  const updatedFields: Partial<GameSession> = {
+    lastUpdated: Date.now(),
     currentState: {
       ...session.currentState,
       ...updates
     }
   };
 
-  // Handle root level updates separately
+  // Handle root level updates
   if ('currentRound' in updates) {
-    updatedState.currentRound = updates.currentRound!;
+    updatedFields.currentRound = updates.currentRound;
   }
   if ('currentQuestionIndex' in updates) {
-    updatedState.currentQuestionIndex = updates.currentQuestionIndex!;
+    updatedFields.currentQuestionIndex = updates.currentQuestionIndex;
   }
 
-  // Track when the state was last updated
-  updatedState.lastUpdated = Date.now();
+  // Update status based on phase transitions
+  if (updates.phase === 'answering' && session.status !== 'in-progress') {
+    updatedFields.status = 'in-progress';
+  }
+  if (updates.phase === 'completed') {
+    updatedFields.status = 'completed';
+  }
 
-  // Perform the update
-  await update(sessionRef, updatedState);
+  // If moving to next question, ensure all updates are atomic
+  if (updates.phase === 'answering' && 'currentQuestionIndex' in updates) {
+    updatedFields.currentState = {
+      ...updatedFields.currentState,
+      timeLeft: 10 // Reset timer for new question
+    };
+  }
+
+  // Perform the atomic update
+  await update(sessionRef, updatedFields);
 };
 
 export const calculateRoundWinners = async (

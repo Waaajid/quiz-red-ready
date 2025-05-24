@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +37,8 @@ const QuestionCard = ({
     if (!isAnswered) {
       // Auto-submit empty answer when timer completes
       handleSubmit();
+    } else {
+      setCanProceed(true);
     }
   };
   
@@ -46,11 +47,7 @@ const QuestionCard = ({
       setIsAnswered(true);
       onSubmit(answer.trim(), timeRemaining);
       
-      // If timer hasn't completed yet, wait for it
-      if (!timerComplete) {
-        // Timer will continue running and enable "Next" when it completes
-        return;
-      } else {
+      if (timerComplete) {
         // Timer already completed, can proceed immediately
         setCanProceed(true);
       }
@@ -58,18 +55,18 @@ const QuestionCard = ({
   };
   
   const handleNext = () => {
-    if (canProceed || timerComplete) {
-      // The parent component will handle moving to next question
-      onSubmit(answer.trim(), timeRemaining);
+    if (canProceed) {
+      setCanProceed(false); // Prevent multiple clicks
+      onSubmit('', 0); // Signal to advance without submitting new answer
     }
   };
   
-  // Enable "Next" button when timer completes (whether answered or not)
+  // Enable "Next" button when timer completes
   useEffect(() => {
-    if (timerComplete) {
+    if (timerComplete && isAnswered) {
       setCanProceed(true);
     }
-  }, [timerComplete]);
+  }, [timerComplete, isAnswered]);
   
   return (
     <Card className="w-full bg-white/10 backdrop-blur-sm border-none shadow-lg">
@@ -94,7 +91,7 @@ const QuestionCard = ({
             value={answer}
             onChange={(e) => !isAnswered && setAnswer(e.target.value)}
             className="bg-white/20 border-white/30 text-white placeholder:text-white/60"
-            disabled={isAnswered && canProceed}
+            disabled={isAnswered}
           />
           
           <Button

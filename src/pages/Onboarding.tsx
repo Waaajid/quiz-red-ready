@@ -5,7 +5,15 @@ import { Progress } from "@/components/ui/progress";
 import { useEffect } from "react";
 
 const Onboarding = () => {
-  const { nickname, selectedTeam, resetQuiz } = useQuiz();
+  const { 
+    nickname, 
+    selectedTeam, 
+    resetQuiz,
+    startNewSession,
+    gameSession,
+    isSessionHost,
+    updateGameState
+  } = useQuiz();
   const navigate = useNavigate();
   
   // Redirect if user hasn't completed previous steps
@@ -17,10 +25,33 @@ const Onboarding = () => {
     }
   }, [nickname, selectedTeam, navigate]);
 
-  const handleStartGame = () => {
-    // Reset quiz state before starting
-    resetQuiz();
-    navigate("/quiz");
+  const handleStartGame = async () => {
+    if (!selectedTeam) {
+      navigate("/team-selection");
+      return;
+    }
+
+    try {
+      // Reset quiz state first
+      await resetQuiz();
+
+      if (gameSession) {
+        // Update game status and phase
+        await updateGameState({
+          phase: 'answering',
+          currentRound: 1,
+          currentQuestionIndex: 0
+        });
+
+        // Only navigate if the update was successful
+        navigate("/quiz");
+      } else {
+        console.error('No active game session');
+        navigate("/team-selection");
+      }
+    } catch (error) {
+      console.error('Failed to start game:', error);
+    }
   };
 
   const progressPercentage = (3 / 8) * 100; // Step 3 of 8

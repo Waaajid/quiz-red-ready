@@ -47,59 +47,110 @@ const Quiz = () => {
   
   // Monitor game session state
   useEffect(() => {
-    if (!gameSession) {
+    if (!gameSession && !sessionError) {
+      // Only redirect if there's no session and no error (initial load)
+      return;
+    }
+    
+    if (sessionError) {
+      console.error('Session error:', sessionError);
       navigate("/team-selection");
       return;
     }
 
     // Update local game state based on session
-    const { currentState, currentRound: sessionRound, currentQuestionIndex: sessionQuestionIndex } = gameSession;
+    if (gameSession) {
+      const { currentState, currentRound: sessionRound, currentQuestionIndex: sessionQuestionIndex } = gameSession;
 
-    if (sessionRound !== currentRound) {
-      setCurrentRound(sessionRound);
-    }
-    
-    if (sessionQuestionIndex !== currentQuestionIndex) {
-      setCurrentQuestionIndex(sessionQuestionIndex);
-      setQuestionKey(prev => prev + 1);
-    }
-    
-    // Handle phase changes
-    switch (currentState.phase) {
-      case 'team-selection':
-        navigate("/team-selection");
-        break;
-      case 'answering':
-        setShowingSummary(false);
-        // Check if all teams have answered
-        const allTeamsAnswered = Object.values(gameSession.teams).every(team => {
+      // Update round if changed
+      if (sessionRound && sessionRound !== currentRound) {
+        setCurrentRound(sessionRound);
+      }
+      
+      // Update question if changed
+      if (typeof sessionQuestionIndex === 'number' && sessionQuestionIndex !== currentQuestionIndex) {
+        setCurrentQuestionIndex(sessionQuestionIndex);
+        setQuestionKey(prev => prev + 1);
+      }
+      
+      // Handle phase changes
+      switch (currentState.phase) {
+        case 'team-selection': {
+          navigate("/team-selection");
+          break;
+        }
+        case 'answering': {
+          setShowingSummary(false);
+          // Check if all teams have answered current question
           const questionKey = `r${sessionRound}q${sessionQuestionIndex + 1}`;
-          return team.answers && team.answers[questionKey]?.length > 0;
-        });
-        setWaitingForOthers(!allTeamsAnswered);
-        break;
-      case 'round-end':
-        setShowingSummary(true);
-        break;
-      case 'completed':
-        setQuizCompleted(true);
-        break;
+          const allTeamsAnswered = Object.values(gameSession.teams).every(team => {
+            return team.answers && team.answers[questionKey]?.length > 0;
+          });
+          setWaitingForOthers(!allTeamsAnswered);
+          break;
+        }
+        case 'round-end': {
+          setShowingSummary(true);
+          if (isSessionHost) {
+            processRoundResults(currentRound);
+          }
+          break;
+        }
+        case 'completed': {
+          setQuizCompleted(true);
+          break;
+        }
+      }
     }
-  }, [gameSession, currentRound, currentQuestionIndex, setCurrentRound, setCurrentQuestionIndex, navigate, setQuizCompleted]);
+  }, [
+    gameSession,
+    currentRound,
+    currentQuestionIndex,
+    setCurrentRound,
+    setCurrentQuestionIndex,
+    navigate,
+    setQuizCompleted,
+    isSessionHost,
+    sessionError,
+    processRoundResults
+  ]);
 
   // Redirect if not properly set up
   useEffect(() => {
     if (!nickname) {
       navigate("/");
-    } else if (!selectedTeam || !gameSession) {
+    } else if (!selectedTeam || (!gameSession && sessionError)) {
       navigate("/team-selection");
     }
-  }, [nickname, selectedTeam, gameSession, navigate]);
+  }, [nickname, selectedTeam, gameSession, navigate, sessionError]);
 
   const handleAnswerSubmit = async (answer: string, timeRemaining: number) => {
     if (!currentQuestion || !selectedTeam || !gameSession) return;
 
     try {
+      // If answer is empty and timeRemaining is 0, this is a "Next" action
+      if (!answer && timeRemaining === 0) {
+        // Only host advances the game state
+        if (isSessionHost) {
+          let nextState;
+          if (currentQuestionIndex < questionsPerRound - 1) {
+            nextState = {
+              phase: 'answering',
+              currentQuestionIndex: currentQuestionIndex + 1
+            };
+          } else {
+            nextState = {
+              phase: 'round-end'
+            };
+            processRoundResults(currentRound);
+          }
+          
+          // Update the game session state
+          await updateGameState(gameSession.id, nextState);
+        }
+        return;
+      }
+
       // Submit answer both locally and to session
       submitAnswer(currentQuestion.id, answer, timeRemaining);
       
@@ -124,7 +175,7 @@ const Quiz = () => {
         return team.answers && team.answers[questionKey]?.length > 0;
       });
 
-      // Only the host advances the game state
+      // Only the host advances the game state when everyone has answered
       if (isSessionHost && allTeamsAnswered) {
         let nextState;
         if (currentQuestionIndex < questionsPerRound - 1) {

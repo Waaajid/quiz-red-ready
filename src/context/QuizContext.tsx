@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { ref, set, onValue, off, get, serverTimestamp } from 'firebase/database';
+import { ref, set, onValue, off, get, update } from 'firebase/database';
 import { db } from '../config/firebase';
 import { 
   createGameSession, 
@@ -71,38 +71,53 @@ interface MultiplayerSession {
 }
 
 interface QuizContextProps {
+  // User and team management
   nickname: string;
   setNickname: (nickname: string) => void;
   selectedTeam: Team | null;
   setSelectedTeam: (team: Team) => void;
   teams: Team[];
-  joinTeam: (teamId: string) => void;
+  joinTeam: (teamId: string) => Promise<void>;
+
+  // Game state
   currentRound: number;
   setCurrentRound: (round: number) => void;
   currentQuestionIndex: number;
   setCurrentQuestionIndex: (question: number) => void;
   questions: Question[];
   userAnswers: Answer[];
-  submitAnswer: (questionId: string, answer: string, timeRemaining: number) => void;
   quizCompleted: boolean;
   setQuizCompleted: (completed: boolean) => void;
-  resetQuiz: () => void;
+  
+  // Game actions
+  submitAnswer: (questionId: string, answer: string, timeRemaining: number) => void;
+  submitPlayerAnswer: (answer: Omit<PlayerAnswer, 'playerId'>) => void;
+  processRoundResults: (roundNumber: number) => void;
+  resetQuiz: () => Promise<void>;
+
+  // Game data
   playerAnswers: PlayerAnswer[];
   roundResults: RoundResult[];
   teamScores: TeamScore[];
-  submitPlayerAnswer: (answer: Omit<PlayerAnswer, 'playerId'>) => void;
-  processRoundResults: (roundNumber: number) => void;
   getRoundWinner: (roundNumber: number) => string | null;
   getDiceRolls: (teamName: string) => number;
+
+  // Session management
+  gameSession: GameSession | null;
   sessionId: string | null;
+  isSessionHost: boolean;
   isMultiplayer: boolean;
   multiplayerStatus: 'connecting' | 'connected' | 'disconnected';
-  gameSession: GameSession | null;
   sessionError: string | null;
+  
+  // Session actions
   startNewSession: () => Promise<string>;
   joinExistingSession: (sessionId: string) => Promise<void>;
   leaveCurrentSession: () => Promise<void>;
-  isSessionHost: boolean;
+  updateGameState: (updates: Partial<GameSession['currentState'] & { 
+    currentRound?: number; 
+    currentQuestionIndex?: number 
+  }>) => Promise<void>;
 }
 
 const QuizContext = createContext<QuizContextProps | undefined>(undefined);
@@ -151,23 +166,75 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
     { id: 'r3q4', text: 'Conducttr conference date?', roundId: 3 },
   ];
 
-  const joinTeam = (teamId: string) => {
+  const joinTeam = async (teamId: string) => {
     const team = teams.find(t => t.id === teamId);
-    if (team && team.playerCount < team.maxPlayers) {
-      setTeams(teams.map(t => 
-        t.id === teamId 
-          ? { ...t, playerCount: t.playerCount + 1 }
-          : t
-      ));
-      setSelectedTeam({ ...team, playerCount: team.playerCount + 1 });
+    if (team && team.playerCount < team.maxPlayers && sessionId) {
+      try {
+        // Update local state
+        setTeams(teams.map(t => 
+          t.id === teamId 
+            ? { ...t, playerCount: t.playerCount + 1 }
+            : t
+        ));
+        setSelectedTeam({ ...team, playerCount: team.playerCount + 1 });
+
+        // Update Firebase
+        const updates = {
+          [`/sessions/${sessionId}/teams/${teamId}`]: {
+            name: team.name,
+            color: team.color,
+            playerCount: team.playerCount + 1,
+            maxPlayers: team.maxPlayers,
+            answers: {}
+          },
+          [`/sessions/${sessionId}/players/${nickname}/teamId`]: teamId
+        };
+        await update(ref(db), updates);
+      } catch (error) {
+        console.error('Failed to join team:', error);
+        throw error;
+      }
     }
   };
 
-  const resetQuiz = () => {
+  const resetQuiz = async () => {
+    // Reset local quiz state
     setCurrentRound(1);
     setCurrentQuestionIndex(0);
     setUserAnswers([]);
     setQuizCompleted(false);
+    setPlayerAnswers([]);
+    setRoundResults([]);
+    setTeamScores([]);
+    
+    // Update game session if it exists
+    if (sessionId) {
+      try {
+        // Reset the entire game state
+        const sessionRef = ref(db, `sessions/${sessionId}`);
+        const sessionSnapshot = await get(sessionRef);
+        const session = sessionSnapshot.val() as GameSession;
+        
+        if (session) {
+          // Preserve teams and players but reset game state
+          const updates = {
+            status: 'in-progress',
+            currentRound: 1,
+            currentQuestionIndex: 0,
+            roundWinners: {},
+            currentState: {
+              phase: 'answering',
+            },
+            lastUpdated: Date.now()
+          };
+          
+          await update(sessionRef, updates);
+        }
+      } catch (error) {
+        console.error('Failed to reset game session:', error);
+        setSessionError(error instanceof Error ? error.message : 'Failed to reset session');
+      }
+    }
   };
 
   const submitPlayerAnswer = (answer: Omit<PlayerAnswer, 'playerId'>) => {
@@ -320,7 +387,14 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [sessionId, nickname]);
 
-  const contextValue = {
+  const handleUpdateGameState = async (updates: Parameters<QuizContextProps['updateGameState']>[0]) => {
+    if (!sessionId) {
+      throw new Error('No active session');
+    }
+    await updateGameState(sessionId, updates);
+  };
+
+  const contextValue: QuizContextProps = {
     nickname,
     setNickname,
     selectedTeam,
@@ -352,7 +426,8 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
     startNewSession,
     joinExistingSession,
     leaveCurrentSession,
-    isSessionHost
+    isSessionHost,
+    updateGameState: handleUpdateGameState
   };
 
   return (
