@@ -1,4 +1,16 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { ref, set, onValue, off, get, serverTimestamp } from 'firebase/database';
+import { db } from '../config/firebase';
+import { 
+  createGameSession, 
+  joinGameSession, 
+  subscribeToGameSession,
+  submitAnswer as submitSessionAnswer,
+  updateGameState,
+  calculateRoundWinners,
+  leaveSession,
+  GameSession
+} from '../services/gameSession';
 
 interface Team {
   id: string;
@@ -46,6 +58,18 @@ interface TeamScore {
   diceRollsRemaining: number;
 }
 
+interface MultiplayerSession {
+  id: string;
+  status: 'waiting' | 'in-progress' | 'completed';
+  teams: {
+    [teamId: string]: {
+      name: string;
+      players: string[];
+      answeredCount: number;
+    }
+  };
+}
+
 interface QuizContextProps {
   nickname: string;
   setNickname: (nickname: string) => void;
@@ -70,6 +94,15 @@ interface QuizContextProps {
   processRoundResults: (roundNumber: number) => void;
   getRoundWinner: (roundNumber: number) => string | null;
   getDiceRolls: (teamName: string) => number;
+  sessionId: string | null;
+  isMultiplayer: boolean;
+  multiplayerStatus: 'connecting' | 'connected' | 'disconnected';
+  gameSession: GameSession | null;
+  sessionError: string | null;
+  startNewSession: () => Promise<string>;
+  joinExistingSession: (sessionId: string) => Promise<void>;
+  leaveCurrentSession: () => Promise<void>;
+  isSessionHost: boolean;
 }
 
 const QuizContext = createContext<QuizContextProps | undefined>(undefined);
@@ -84,6 +117,12 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
   const [playerAnswers, setPlayerAnswers] = useState<PlayerAnswer[]>([]);
   const [roundResults, setRoundResults] = useState<RoundResult[]>([]);
   const [teamScores, setTeamScores] = useState<TeamScore[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isMultiplayer, setIsMultiplayer] = useState(false);
+  const [multiplayerStatus, setMultiplayerStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
+  const [gameSession, setGameSession] = useState<GameSession | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [isSessionHost, setIsSessionHost] = useState(false);
   
   const [teams, setTeams] = useState<Team[]>([
     { id: 'crimson', name: 'Team Crimson', color: 'bg-red-600', playerCount: 3, maxPlayers: 7 },
@@ -122,10 +161,6 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
       ));
       setSelectedTeam({ ...team, playerCount: team.playerCount + 1 });
     }
-  };
-
-  const submitAnswer = (questionId: string, answer: string, timeRemaining: number) => {
-    setUserAnswers(prev => [...prev, { questionId, answer, timeRemaining }]);
   };
 
   const resetQuiz = () => {
@@ -218,41 +253,122 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
     return teamScores.find(s => s.teamName === teamName)?.diceRollsRemaining ?? 0;
   };
 
+  useEffect(() => {
+    return () => {
+      // Cleanup any active session subscription
+      if (sessionId) {
+        leaveSession(sessionId, nickname).catch(console.error);
+      }
+    };
+  }, [sessionId, nickname]);
+
+  const startNewSession = useCallback(async () => {
+    try {
+      const newSessionId = Math.random().toString(36).substring(2, 15);
+      await createGameSession(newSessionId, nickname, nickname);
+      setSessionId(newSessionId);
+      setIsSessionHost(true);
+      
+      // Subscribe to session updates
+      const unsubscribe = subscribeToGameSession(newSessionId, (session) => {
+        setGameSession(session);
+      });
+      
+      return newSessionId;
+    } catch (error) {
+      setSessionError(error instanceof Error ? error.message : 'Failed to create session');
+      throw error;
+    }
+  }, [nickname]);
+
+  const joinExistingSession = useCallback(async (joinSessionId: string) => {
+    try {
+      await joinGameSession(joinSessionId, nickname, nickname, selectedTeam?.id || '');
+      setSessionId(joinSessionId);
+      setIsSessionHost(false);
+      
+      // Subscribe to session updates
+      const unsubscribe = subscribeToGameSession(joinSessionId, (session) => {
+        setGameSession(session);
+      });
+      
+    } catch (error) {
+      setSessionError(error instanceof Error ? error.message : 'Failed to join session');
+      throw error;
+    }
+  }, [nickname, selectedTeam]);
+
+  const leaveCurrentSession = useCallback(async () => {
+    if (sessionId) {
+      await leaveSession(sessionId, nickname);
+      setSessionId(null);
+      setGameSession(null);
+      setIsSessionHost(false);
+    }
+  }, [sessionId, nickname]);
+
+  const submitAnswer = useCallback((questionId: string, answer: string, timeRemaining: number) => {
+    // Update local state
+    setUserAnswers(prev => [...prev, { questionId, answer, timeRemaining }]);
+    
+    // If in multiplayer mode, submit to session
+    if (sessionId && nickname) {
+      submitSessionAnswer(sessionId, nickname, questionId, answer, timeRemaining)
+        .catch(error => {
+          setSessionError(error instanceof Error ? error.message : 'Failed to submit answer');
+        });
+    }
+  }, [sessionId, nickname]);
+
+  const contextValue = {
+    nickname,
+    setNickname,
+    selectedTeam,
+    setSelectedTeam,
+    teams,
+    joinTeam,
+    currentRound,
+    setCurrentRound,
+    currentQuestionIndex,
+    setCurrentQuestionIndex,
+    questions,
+    userAnswers,
+    submitAnswer,
+    quizCompleted,
+    setQuizCompleted,
+    resetQuiz,
+    playerAnswers,
+    roundResults,
+    teamScores,
+    submitPlayerAnswer,
+    processRoundResults,
+    getRoundWinner,
+    getDiceRolls,
+    sessionId,
+    isMultiplayer,
+    multiplayerStatus,
+    gameSession,
+    sessionError,
+    startNewSession,
+    joinExistingSession,
+    leaveCurrentSession,
+    isSessionHost
+  };
+
   return (
-    <QuizContext.Provider value={{ 
-      nickname, 
-      setNickname, 
-      selectedTeam, 
-      setSelectedTeam,
-      teams,
-      joinTeam,
-      currentRound,
-      setCurrentRound,
-      currentQuestionIndex,
-      setCurrentQuestionIndex,
-      questions,
-      userAnswers,
-      submitAnswer,
-      quizCompleted,
-      setQuizCompleted,
-      resetQuiz,
-      playerAnswers,
-      roundResults,
-      teamScores,
-      submitPlayerAnswer,
-      processRoundResults,
-      getRoundWinner,
-      getDiceRolls
-    }}>
+    <QuizContext.Provider value={contextValue}>
       {children}
     </QuizContext.Provider>
   );
 };
 
-export const useQuiz = () => {
+// This hook lets components access the quiz context
+function useQuiz() {
   const context = useContext(QuizContext);
   if (context === undefined) {
     throw new Error('useQuiz must be used within a QuizProvider');
   }
   return context;
-};
+}
+
+export { useQuiz };

@@ -1,4 +1,3 @@
-
 import { useQuiz } from "@/context/QuizContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -7,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import QuestionCard from "@/components/QuestionCard";
 import RoundSummary from "@/components/RoundSummary";
 import QuizComplete from "@/components/QuizComplete";
+import { updateGameState } from "@/services/gameSession";
 
 const Quiz = () => {
   const { 
@@ -22,14 +22,18 @@ const Quiz = () => {
     processRoundResults,
     getRoundWinner,
     quizCompleted,
-    setQuizCompleted
+    setQuizCompleted,
+    // Multiplayer additions
+    gameSession,
+    isSessionHost,
+    sessionError
   } = useQuiz();
   
   const navigate = useNavigate();
   
-  // States for the component
   const [showingSummary, setShowingSummary] = useState(false);
   const [questionKey, setQuestionKey] = useState(0);
+  const [waitingForOthers, setWaitingForOthers] = useState(false);
   
   // Filter questions for current round
   const roundQuestions = questions.filter(q => q.roundId === currentRound);
@@ -41,21 +45,64 @@ const Quiz = () => {
   const completedQuestions = (currentRound - 1) * questionsPerRound + currentQuestionIndex;
   const progressPercentage = (completedQuestions / totalQuestions) * 100;
   
-  // Redirect to home if no nickname or team is set
+  // Monitor game session state
+  useEffect(() => {
+    if (!gameSession) {
+      navigate("/team-selection");
+      return;
+    }
+
+    // Update local game state based on session
+    const { currentState, currentRound: sessionRound, currentQuestionIndex: sessionQuestionIndex } = gameSession;
+
+    if (sessionRound !== currentRound) {
+      setCurrentRound(sessionRound);
+    }
+    
+    if (sessionQuestionIndex !== currentQuestionIndex) {
+      setCurrentQuestionIndex(sessionQuestionIndex);
+      setQuestionKey(prev => prev + 1);
+    }
+    
+    // Handle phase changes
+    switch (currentState.phase) {
+      case 'team-selection':
+        navigate("/team-selection");
+        break;
+      case 'answering':
+        setShowingSummary(false);
+        // Check if all teams have answered
+        const allTeamsAnswered = Object.values(gameSession.teams).every(team => {
+          const questionKey = `r${sessionRound}q${sessionQuestionIndex + 1}`;
+          return team.answers && team.answers[questionKey]?.length > 0;
+        });
+        setWaitingForOthers(!allTeamsAnswered);
+        break;
+      case 'round-end':
+        setShowingSummary(true);
+        break;
+      case 'completed':
+        setQuizCompleted(true);
+        break;
+    }
+  }, [gameSession, currentRound, currentQuestionIndex, setCurrentRound, setCurrentQuestionIndex, navigate, setQuizCompleted]);
+
+  // Redirect if not properly set up
   useEffect(() => {
     if (!nickname) {
       navigate("/");
-    } else if (!selectedTeam) {
+    } else if (!selectedTeam || !gameSession) {
       navigate("/team-selection");
     }
-  }, [nickname, selectedTeam, navigate]);
+  }, [nickname, selectedTeam, gameSession, navigate]);
 
-  const handleAnswerSubmit = (answer: string, timeRemaining: number) => {
-    if (currentQuestion && selectedTeam) {
-      // Keep existing answer submission
+  const handleAnswerSubmit = async (answer: string, timeRemaining: number) => {
+    if (!currentQuestion || !selectedTeam || !gameSession) return;
+
+    try {
+      // Submit answer both locally and to session
       submitAnswer(currentQuestion.id, answer, timeRemaining);
       
-      // Add new player answer for matching
       submitPlayerAnswer({
         teamName: selectedTeam.name,
         roundNumber: currentRound,
@@ -63,30 +110,73 @@ const Quiz = () => {
         answer: answer
       });
       
-      // Short delay before moving to next question
-      setTimeout(() => {
+      setWaitingForOthers(true);
+
+      // Update game session with the new answer
+      await updateGameState(gameSession.id, {
+        phase: 'answering',
+        currentQuestionIndex: currentQuestionIndex
+      });
+
+      // Check if all teams have answered
+      const allTeamsAnswered = Object.values(gameSession.teams).every(team => {
+        const questionKey = `r${currentRound}q${currentQuestionIndex + 1}`;
+        return team.answers && team.answers[questionKey]?.length > 0;
+      });
+
+      // Only the host advances the game state
+      if (isSessionHost && allTeamsAnswered) {
+        let nextState;
         if (currentQuestionIndex < questionsPerRound - 1) {
-          // Go to next question in the round
-          setCurrentQuestionIndex(currentQuestionIndex + 1);
-          setQuestionKey(prev => prev + 1); // Force re-render of QuestionCard
+          nextState = {
+            phase: 'answering',
+            currentQuestionIndex: currentQuestionIndex + 1
+          };
         } else {
-          // Process round results before showing summary
+          nextState = {
+            phase: 'round-end'
+          };
           processRoundResults(currentRound);
-          setShowingSummary(true);
         }
-      }, 1000);
+        
+        // Update the game session state
+        await updateGameState(gameSession.id, nextState);
+      }
+    } catch (error) {
+      console.error('Error submitting answer:', error);
     }
   };
   
-  const handleNextRound = () => {
-    if (currentRound < 3) {
-      setCurrentRound(currentRound + 1);
-      setCurrentQuestionIndex(0);
-      setShowingSummary(false);
-      setQuestionKey(prev => prev + 1); // Force re-render of QuestionCard
-    } else {
-      // Quiz complete
-      setQuizCompleted(true);
+  const handleNextRound = async () => {
+    try {
+      if (currentRound < 3) {
+        const nextRound = currentRound + 1;
+        
+        // Update local state
+        setCurrentRound(nextRound);
+        setCurrentQuestionIndex(0);
+        setShowingSummary(false);
+        setQuestionKey(prev => prev + 1);
+        
+        // Update game session if host
+        if (isSessionHost && gameSession) {
+          await updateGameState(gameSession.id, {
+            phase: 'answering',
+            currentRound: nextRound,
+            currentQuestionIndex: 0
+          });
+        }
+      } else {
+        // Quiz complete
+        setQuizCompleted(true);
+        if (isSessionHost && gameSession) {
+          await updateGameState(gameSession.id, {
+            phase: 'completed'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error advancing round:', error);
     }
   };
 

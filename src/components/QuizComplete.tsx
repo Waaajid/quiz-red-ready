@@ -1,17 +1,37 @@
-
 import { Button } from "@/components/ui/button";
 import { useQuiz } from "@/context/QuizContext";
 import { useNavigate } from "react-router-dom";
 
 const QuizComplete = () => {
-  const { nickname, selectedTeam, userAnswers, questions, resetQuiz } = useQuiz();
+  const { 
+    nickname, 
+    selectedTeam, 
+    userAnswers, 
+    questions, 
+    resetQuiz,
+    gameSession,
+    roundResults,
+    teamScores,
+    getRoundWinner,
+    getDiceRolls
+  } = useQuiz();
+  
   const navigate = useNavigate();
+
+  const finalResults = teamScores.sort((a, b) => b.roundsWon.length - a.roundsWon.length);
+  const winningTeam = finalResults[0];
   
   const handlePlayAgain = () => {
     resetQuiz();
     navigate("/");
   };
-  
+
+  const handleDiceRoll = () => {
+    if (selectedTeam && winningTeam && winningTeam.teamName === selectedTeam.name) {
+      navigate("/dice-roll");
+    }
+  };
+
   return (
     <div className="w-full max-w-3xl mx-auto bg-white/10 backdrop-blur-sm p-8 rounded-xl shadow-lg">
       <h2 className="text-3xl font-bold text-center mb-6">
@@ -64,6 +84,51 @@ const QuizComplete = () => {
         >
           Play Again
         </Button>
+      </div>
+
+      <div className="mt-8">
+        {winningTeam && (
+          <div className="text-center space-y-4">
+            <h2 className="text-2xl">Overall Winner</h2>
+            <div className="inline-block px-8 py-4 bg-quiz-red-600 rounded-full">
+              <span className="text-3xl font-bold">{winningTeam.teamName}</span>
+            </div>
+            <p className="text-xl">
+              Won {winningTeam.roundsWon.length} {winningTeam.roundsWon.length === 1 ? 'round' : 'rounds'}
+            </p>
+          </div>
+        )}
+        
+        <div className="bg-white/10 rounded-xl p-6">
+          <h3 className="text-xl font-bold mb-4">Round Results</h3>
+          <div className="space-y-4">
+            {[1, 2, 3].map(round => {
+              const winner = getRoundWinner(round);
+              return (
+                <div key={round} className="flex items-center justify-between">
+                  <span>Round {round}:</span>
+                  <span className="font-bold">
+                    {winner || 'No winner'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        
+        {selectedTeam && winningTeam && winningTeam.teamName === selectedTeam.name && (
+          <div className="text-center">
+            <p className="text-xl mb-4">
+              Congratulations! Your team has won {getDiceRolls(selectedTeam.name)} dice rolls!
+            </p>
+            <Button
+              onClick={handleDiceRoll}
+              className="bg-quiz-red-500 hover:bg-quiz-red-600 text-white font-bold px-8 py-4 text-xl"
+            >
+              Roll the Dice!
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
