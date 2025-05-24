@@ -91,6 +91,12 @@ export const joinGameSession = async (
     throw new Error('Cannot join a game in progress');
   }
 
+  // Check total number of players in session
+  const totalPlayers = Object.keys(session.players || {}).length;
+  if (totalPlayers >= 28) { // 4 teams × 7 players
+    throw new Error('Game room is full (maximum 28 players)');
+  }
+
   // Add player to session
   const playerRef = ref(db, `sessions/${sessionId}/players/${playerId}`);
   await set(playerRef, {
@@ -247,25 +253,25 @@ export const leaveSession = async (
   sessionId: string,
   playerId: string
 ): Promise<void> => {
+  const sessionRef = ref(db, `sessions/${sessionId}`);
+  const snapshot = await get(sessionRef);
+  const session = snapshot.val() as GameSession;
+  
+  if (!session) return;
+
+  const player = session.players[playerId];
+  if (!player) return;
+
+  // Decrement team player count if player was on a team
+  if (player.teamId && session.teams[player.teamId]) {
+    const teamRef = ref(db, `sessions/${sessionId}/teams/${player.teamId}`);
+    const newCount = Math.max(0, session.teams[player.teamId].playerCount - 1);
+    await update(teamRef, {
+      playerCount: newCount
+    });
+  }
+
+  // Remove player from session
   const playerRef = ref(db, `sessions/${sessionId}/players/${playerId}`);
   await set(playerRef, null);
-  
-  // Clean up team membership
-  const sessionRef = ref(db, `sessions/${sessionId}`);
-  await onValue(sessionRef, (snapshot) => {
-    const session = snapshot.val() as GameSession;
-    if (!session) return;
-    
-    const player = session.players[playerId];
-    if (player?.teamId) {
-      const team = session.teams[player.teamId];
-      if (team) {
-        const teamRef = ref(db, `sessions/${sessionId}/teams/${player.teamId}`);
-        set(teamRef, {
-          ...team,
-          playerCount: Math.max(0, team.playerCount - 1)
-        });
-      }
-    }
-  }, { onlyOnce: true });
 };

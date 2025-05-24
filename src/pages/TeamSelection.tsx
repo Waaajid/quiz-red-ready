@@ -1,4 +1,4 @@
-import { useQuiz } from "@/context/QuizContext";
+import { useQuiz } from "@/hooks/useQuiz";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,13 +62,36 @@ const TeamSelection = () => {
   };
 
   const handleJoinTeam = async () => {
-    if (selectedTeamId && gameSession) {
-      try {
-        await joinTeam(selectedTeamId);
-        navigate("/onboarding");
-      } catch (error) {
-        console.error('Failed to join team:', error);
+    if (!selectedTeamId || !gameSession) {
+      return;
+    }
+
+    try {
+      const selectedTeamData = gameSession.teams[selectedTeamId];
+      if (!selectedTeamData) {
+        throw new Error('Selected team not found');
       }
+
+      if (selectedTeamData.playerCount >= selectedTeamData.maxPlayers) {
+        throw new Error('This team is full');
+      }
+
+      await joinTeam(selectedTeamId);
+      
+      toast({
+        title: "Team joined successfully!",
+        description: "Redirecting to game setup...",
+      });
+      
+      // Navigate immediately after successful join
+      navigate("/onboarding");
+    } catch (error) {
+      console.error('Failed to join team:', error);
+      toast({
+        title: "Failed to join team",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
     }
   };
 

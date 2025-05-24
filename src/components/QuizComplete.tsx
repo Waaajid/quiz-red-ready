@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { useQuiz } from "@/context/QuizContext";
+import { useQuiz } from "@/hooks/useQuiz";
 import { useNavigate } from "react-router-dom";
 
 const QuizComplete = () => {

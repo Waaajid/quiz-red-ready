@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { useQuiz } from "@/context/QuizContext";
+import { useQuiz } from "@/hooks/useQuiz";
 import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from 'canvas-confetti';

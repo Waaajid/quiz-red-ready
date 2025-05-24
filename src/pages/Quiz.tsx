@@ -1,4 +1,4 @@
-import { useQuiz } from "@/context/QuizContext";
+import { useQuiz } from "@/hooks/useQuiz";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
@@ -121,6 +121,13 @@ const Quiz = () => {
       navigate("/");
     } else if (!selectedTeam || (!gameSession && sessionError)) {
       navigate("/team-selection");
+    } else if (gameSession) {
+      // Verify player is still in their team
+      const currentPlayer = gameSession.players[nickname];
+      const team = gameSession.teams[currentPlayer?.teamId];
+      if (!currentPlayer?.teamId || !team) {
+        navigate("/team-selection");
+      }
     }
   }, [nickname, selectedTeam, gameSession, navigate, sessionError]);
 

@@ -1,3 +1,4 @@
+// Import required dependencies
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { ref, set, onValue, off, get, update } from 'firebase/database';
 import { db } from '../config/firebase';
@@ -12,6 +13,7 @@ import {
   GameSession
 } from '../services/gameSession';
 
+// Define types and interfaces
 interface Team {
   id: string;
   name: string;
@@ -120,9 +122,11 @@ interface QuizContextProps {
   }>) => Promise<void>;
 }
 
+// Create the context
 const QuizContext = createContext<QuizContextProps | undefined>(undefined);
 
-export const QuizProvider = ({ children }: { children: ReactNode }) => {
+// Create the provider component
+export function QuizProvider({ children }: { children: ReactNode }) {
   const [nickname, setNickname] = useState<string>('');
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [currentRound, setCurrentRound] = useState<number>(1);
@@ -133,18 +137,31 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
   const [roundResults, setRoundResults] = useState<RoundResult[]>([]);
   const [teamScores, setTeamScores] = useState<TeamScore[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [isMultiplayer, setIsMultiplayer] = useState(false);
+  const [isMultiplayer] = useState(false);
   const [multiplayerStatus, setMultiplayerStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [isSessionHost, setIsSessionHost] = useState(false);
-  
   const [teams, setTeams] = useState<Team[]>([
-    { id: 'crimson', name: 'Team Crimson', color: 'bg-red-600', playerCount: 3, maxPlayers: 7 },
-    { id: 'scarlet', name: 'Team Scarlet', color: 'bg-red-500', playerCount: 5, maxPlayers: 7 },
-    { id: 'ruby', name: 'Team Ruby', color: 'bg-red-700', playerCount: 2, maxPlayers: 7 },
-    { id: 'garnet', name: 'Team Garnet', color: 'bg-red-800', playerCount: 6, maxPlayers: 7 }
+    { id: 'crimson', name: 'Team Crimson', color: 'bg-red-600', playerCount: 0, maxPlayers: 7 },
+    { id: 'scarlet', name: 'Team Scarlet', color: 'bg-red-500', playerCount: 0, maxPlayers: 7 },
+    { id: 'ruby', name: 'Team Ruby', color: 'bg-red-700', playerCount: 0, maxPlayers: 7 },
+    { id: 'garnet', name: 'Team Garnet', color: 'bg-red-800', playerCount: 0, maxPlayers: 7 }
   ]);
+
+  // Update team player counts whenever game session changes
+  useEffect(() => {
+    if (gameSession && gameSession.teams) {
+      setTeams(prevTeams => 
+        prevTeams.map(team => {
+          const sessionTeam = gameSession.teams[team.id];
+          return sessionTeam 
+            ? { ...team, playerCount: sessionTeam.playerCount }
+            : { ...team, playerCount: 0 };
+        })
+      );
+    }
+  }, [gameSession]);
 
   const questions: Question[] = [
     // Round 1
@@ -168,32 +185,46 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
 
   const joinTeam = async (teamId: string) => {
     const team = teams.find(t => t.id === teamId);
-    if (team && team.playerCount < team.maxPlayers && sessionId) {
-      try {
-        // Update local state
-        setTeams(teams.map(t => 
-          t.id === teamId 
-            ? { ...t, playerCount: t.playerCount + 1 }
-            : t
-        ));
-        setSelectedTeam({ ...team, playerCount: team.playerCount + 1 });
+    if (!team || !sessionId) {
+      throw new Error('Invalid team selection');
+    }
 
-        // Update Firebase
-        const updates = {
-          [`/sessions/${sessionId}/teams/${teamId}`]: {
-            name: team.name,
-            color: team.color,
-            playerCount: team.playerCount + 1,
-            maxPlayers: team.maxPlayers,
-            answers: {}
-          },
-          [`/sessions/${sessionId}/players/${nickname}/teamId`]: teamId
-        };
-        await update(ref(db), updates);
-      } catch (error) {
-        console.error('Failed to join team:', error);
-        throw error;
+    try {
+      // Get current session state
+      const sessionRef = ref(db, `sessions/${sessionId}`);
+      const snapshot = await get(sessionRef);
+      const currentSession = snapshot.val() as GameSession;
+
+      if (!currentSession) {
+        throw new Error('Session not found');
       }
+      
+      // Check total players in session
+      const totalPlayers = Object.keys(currentSession.players || {}).length;
+      if (totalPlayers >= 28) {
+        throw new Error('Game room is full (maximum 28 players)');
+      }
+      
+      // Calculate new player count
+      const newPlayerCount = (currentSession.teams[teamId]?.playerCount ?? 0) + 1;
+      
+      if (newPlayerCount > team.maxPlayers) {
+        throw new Error('Team is full');
+      }
+
+      // Update team in Firebase
+      const updates = {
+        [`/sessions/${sessionId}/teams/${teamId}/playerCount`]: newPlayerCount,
+        [`/sessions/${sessionId}/players/${nickname}/teamId`]: teamId
+      };
+      
+      await update(ref(db), updates);
+      
+      // Update local state
+      setSelectedTeam(team);
+    } catch (error) {
+      console.error('Failed to join team:', error);
+      throw error;
     }
   };
 
@@ -237,12 +268,12 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const submitPlayerAnswer = (answer: Omit<PlayerAnswer, 'playerId'>) => {
+  const submitPlayerAnswer = useCallback((answer: Omit<PlayerAnswer, 'playerId'>) => {
     const playerId = nickname; // Using nickname as playerId for simplicity
     setPlayerAnswers(prev => [...prev, { ...answer, playerId }]);
-  };
+  }, [nickname]);
 
-  const processRoundResults = (roundNumber: number) => {
+  const processRoundResults = useCallback((roundNumber: number) => {
     const roundAnswers = playerAnswers.filter(a => a.roundNumber === roundNumber);
     
     // Group answers by team
@@ -289,7 +320,7 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
 
     setRoundResults(prev => [...prev, roundResult]);
 
-    // Update team scores
+    // Update team scores - award 1 dice roll for each round win
     setTeamScores(prev => {
       const existing = prev.find(s => s.teamName === winningTeam);
       if (existing) {
@@ -298,7 +329,7 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
             ? {
                 ...score,
                 roundsWon: [...score.roundsWon, roundNumber],
-                diceRollsRemaining: score.diceRollsRemaining + 1
+                diceRollsRemaining: 1 // Set to exactly 1 roll
               }
             : score
         );
@@ -306,19 +337,19 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
       return [...prev, {
         teamName: winningTeam,
         roundsWon: [roundNumber],
-        diceRollsRemaining: 1
+        diceRollsRemaining: 1 // Each winning team gets 1 roll
       }];
     });
-  };
+  }, [playerAnswers]);
 
-  const getRoundWinner = (roundNumber: number) => {
+  const getRoundWinner = useCallback((roundNumber: number) => {
     const result = roundResults.find(r => r.roundNumber === roundNumber);
     return result?.winningTeam ?? null;
-  };
+  }, [roundResults]);
 
-  const getDiceRolls = (teamName: string) => {
+  const getDiceRolls = useCallback((teamName: string) => {
     return teamScores.find(s => s.teamName === teamName)?.diceRollsRemaining ?? 0;
-  };
+  }, [teamScores]);
 
   useEffect(() => {
     return () => {
@@ -435,15 +466,7 @@ export const QuizProvider = ({ children }: { children: ReactNode }) => {
       {children}
     </QuizContext.Provider>
   );
-};
-
-// This hook lets components access the quiz context
-function useQuiz() {
-  const context = useContext(QuizContext);
-  if (context === undefined) {
-    throw new Error('useQuiz must be used within a QuizProvider');
-  }
-  return context;
 }
 
-export { useQuiz };
+// Export the context
+export { QuizContext };
