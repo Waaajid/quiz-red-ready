@@ -165,22 +165,22 @@ export function QuizProvider({ children }: { children: ReactNode }) {
 
   const questions: Question[] = [
     // Round 1
-    { id: 'r1q1', text: 'Company results party date?', roundId: 1 },
-    { id: 'r1q2', text: 'https://???.conducttr.com/projects', roundId: 1 },
-    { id: 'r1q3', text: 'Name of our AI-built colleague on LinkedIn', roundId: 1 },
+    { id: 'r1q1', text: 'What is the company results party date?', roundId: 1 },
+    { id: 'r1q2', text: 'What is the missing domain in https://???.conducttr.com/projects?', roundId: 1 },
+    { id: 'r1q3', text: 'What is the name of our AI-built colleague on LinkedIn?', roundId: 1 },
     { id: 'r1q4', text: 'How many clocks are there in our office?', roundId: 1 },
     
     // Round 2
-    { id: 'r2q1', text: 'A franchise movie running in cinemas now', roundId: 2 },
-    { id: 'r2q2', text: 'Nearest store to office', roundId: 2 },
-    { id: 'r2q3', text: 'Our internal communication tool', roundId: 2 },
-    { id: 'r2q4', text: 'Last bank holiday date?', roundId: 2 },
+    { id: 'r2q1', text: 'What franchise movie is currently running in cinemas?', roundId: 2 },
+    { id: 'r2q2', text: 'What is the nearest store to the office?', roundId: 2 },
+    { id: 'r2q3', text: 'What is our internal communication tool?', roundId: 2 },
+    { id: 'r2q4', text: 'When was the last bank holiday?', roundId: 2 },
     
     // Round 3
-    { id: 'r3q1', text: 'A place non-Londoners mispronounce', roundId: 3 },
-    { id: 'r3q2', text: '2 hydrogen and one oxygen makes?', roundId: 3 },
-    { id: 'r3q3', text: '1 + 0 × 5 =', roundId: 3 },
-    { id: 'r3q4', text: 'Conducttr conference date?', roundId: 3 },
+    { id: 'r3q1', text: 'What place do non-Londoners often mispronounce?', roundId: 3 },
+    { id: 'r3q2', text: 'What does two hydrogen and one oxygen make?', roundId: 3 },
+    { id: 'r3q3', text: 'What is 1 + 0 × 5?', roundId: 3 },
+    { id: 'r3q4', text: 'When is the Conducttr conference?', roundId: 3 },
   ];
 
   const joinTeam = async (teamId: string) => {

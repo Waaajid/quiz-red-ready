@@ -99,3 +99,27 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  
+  .transform-style-3d {
+    transform-style: preserve-3d;
+  }
+
+  .golden-glow {
+    box-shadow: 0 0 15px #FFD700;
+    animation: glow 1s ease-in-out infinite alternate;
+  }
+
+  @keyframes glow {
+    from {
+      box-shadow: 0 0 15px #FFD700;
+    }
+    to {
+      box-shadow: 0 0 25px #FFD700, 0 0 35px #FFA500;
+    }
+  }
+}

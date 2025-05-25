@@ -116,17 +116,33 @@ const QuizComplete = () => {
           </div>
         </div>
         
-        {selectedTeam && winningTeam && winningTeam.teamName === selectedTeam.name && (
-          <div className="text-center">
-            <p className="text-xl mb-4">
-              Congratulations! Your team has won {getDiceRolls(selectedTeam.name)} dice rolls!
-            </p>
-            <Button
-              onClick={handleDiceRoll}
-              className="bg-quiz-red-500 hover:bg-quiz-red-600 text-white font-bold px-8 py-4 text-xl"
-            >
-              Roll the Dice!
-            </Button>
+        {selectedTeam && winningTeam && (
+          <div className="text-center mt-6">
+            {winningTeam.teamName === selectedTeam.name ? (
+              <>
+                <p className="text-xl mb-4">
+                  Congratulations! Your team has won {getDiceRolls(selectedTeam.name)} dice rolls!
+                </p>
+                <Button
+                  onClick={handleDiceRoll}
+                  className="bg-quiz-red-500 hover:bg-quiz-red-600 text-white font-bold px-8 py-4 text-xl"
+                >
+                  Roll the Dice!
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-xl mb-4">
+                  {winningTeam.teamName} has won the dice rolls!
+                </p>
+                <Button
+                  onClick={() => navigate('/dice-roll')}
+                  className="bg-quiz-red-500/50 hover:bg-quiz-red-600/50 text-white font-bold px-8 py-4 text-xl"
+                >
+                  View Dice Rolls
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>
