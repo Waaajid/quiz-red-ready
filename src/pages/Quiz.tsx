@@ -1,3 +1,4 @@
+
 import { useQuiz } from "@/hooks/useQuiz";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,6 @@ import QuestionCard from "@/components/QuestionCard";
 import RoundSummary from "@/components/RoundSummary";
 import QuizComplete from "@/components/QuizComplete";
 import { updateGameState } from "@/services/gameSession";
-import { addSimulatedPlayers, simulateAnswers } from "@/services/simulateUsers";
 
 const Quiz = () => {
   const { 
@@ -21,10 +21,8 @@ const Quiz = () => {
     submitAnswer,
     submitPlayerAnswer,
     processRoundResults,
-    getRoundWinner,
     quizCompleted,
     setQuizCompleted,
-    // Multiplayer additions
     gameSession,
     isSessionHost,
     sessionError
@@ -35,7 +33,6 @@ const Quiz = () => {
   const [showingSummary, setShowingSummary] = useState(false);
   const [questionKey, setQuestionKey] = useState(0);
   const [waitingForOthers, setWaitingForOthers] = useState(false);
-  const [hasSimulatedPlayers, setHasSimulatedPlayers] = useState(false);
   
   // Filter questions for current round
   const roundQuestions = questions.filter(q => q.roundId === currentRound);
@@ -50,7 +47,6 @@ const Quiz = () => {
   // Monitor game session state
   useEffect(() => {
     if (!gameSession && !sessionError) {
-      // Only redirect if there's no session and no error (initial load)
       return;
     }
     
@@ -60,22 +56,18 @@ const Quiz = () => {
       return;
     }
 
-    // Update local game state based on session
     if (gameSession) {
       const { currentState, currentRound: sessionRound, currentQuestionIndex: sessionQuestionIndex } = gameSession;
 
-      // Update round if changed
       if (sessionRound && sessionRound !== currentRound) {
         setCurrentRound(sessionRound);
       }
       
-      // Update question if changed
       if (typeof sessionQuestionIndex === 'number' && sessionQuestionIndex !== currentQuestionIndex) {
         setCurrentQuestionIndex(sessionQuestionIndex);
         setQuestionKey(prev => prev + 1);
       }
       
-      // Handle phase changes
       switch (currentState.phase) {
         case 'team-selection': {
           navigate("/team-selection");
@@ -83,7 +75,6 @@ const Quiz = () => {
         }
         case 'answering': {
           setShowingSummary(false);
-          // Check if all teams have answered current question
           const questionKey = `r${sessionRound}q${sessionQuestionIndex + 1}`;
           const allTeamsAnswered = Object.values(gameSession.teams).every(team => {
             return team.answers && team.answers[questionKey]?.length > 0;
@@ -124,7 +115,6 @@ const Quiz = () => {
     } else if (!selectedTeam || (!gameSession && sessionError)) {
       navigate("/team-selection");
     } else if (gameSession) {
-      // Verify player is still in their team
       const currentPlayer = gameSession.players[nickname];
       const team = gameSession.teams[currentPlayer?.teamId];
       if (!currentPlayer?.teamId || !team) {
@@ -137,9 +127,7 @@ const Quiz = () => {
     if (!currentQuestion || !selectedTeam || !gameSession) return;
 
     try {
-      // If answer is empty and timeRemaining is 0, this is a "Next" action
       if (!answer && timeRemaining === 0) {
-        // Only host advances the game state
         if (isSessionHost) {
           let nextState;
           if (currentQuestionIndex < questionsPerRound - 1) {
@@ -154,13 +142,11 @@ const Quiz = () => {
             processRoundResults(currentRound);
           }
           
-          // Update the game session state
           await updateGameState(gameSession.id, nextState);
         }
         return;
       }
 
-      // Submit answer both locally and to session
       submitAnswer(currentQuestion.id, answer, timeRemaining);
       
       submitPlayerAnswer({
@@ -172,19 +158,16 @@ const Quiz = () => {
       
       setWaitingForOthers(true);
 
-      // Update game session with the new answer
       await updateGameState(gameSession.id, {
         phase: 'answering',
         currentQuestionIndex: currentQuestionIndex
       });
 
-      // Check if all teams have answered
       const allTeamsAnswered = Object.values(gameSession.teams).every(team => {
         const questionKey = `r${currentRound}q${currentQuestionIndex + 1}`;
         return team.answers && team.answers[questionKey]?.length > 0;
       });
 
-      // Only the host advances the game state when everyone has answered
       if (isSessionHost && allTeamsAnswered) {
         let nextState;
         if (currentQuestionIndex < questionsPerRound - 1) {
@@ -199,7 +182,6 @@ const Quiz = () => {
           processRoundResults(currentRound);
         }
         
-        // Update the game session state
         await updateGameState(gameSession.id, nextState);
       }
     } catch (error) {
@@ -212,13 +194,11 @@ const Quiz = () => {
       if (currentRound < 3) {
         const nextRound = currentRound + 1;
         
-        // Update local state
         setCurrentRound(nextRound);
         setCurrentQuestionIndex(0);
         setShowingSummary(false);
         setQuestionKey(prev => prev + 1);
         
-        // Update game session if host
         if (isSessionHost && gameSession) {
           await updateGameState(gameSession.id, {
             phase: 'answering',
@@ -227,7 +207,6 @@ const Quiz = () => {
           });
         }
       } else {
-        // Quiz complete
         setQuizCompleted(true);
         if (isSessionHost && gameSession) {
           await updateGameState(gameSession.id, {
@@ -240,48 +219,6 @@ const Quiz = () => {
     }
   };
 
-  // Add simulated players
-  const handleAddSimulatedPlayers = async () => {
-    if (!gameSession?.id || !isSessionHost) {
-      console.error('Cannot add simulated players: not a host or no active session');
-      return;
-    }
-    
-    try {
-      await addSimulatedPlayers(gameSession.id);
-      setHasSimulatedPlayers(true);
-    } catch (error) {
-      console.error('Error adding simulated players:', error);
-      // Reset simulation state if it fails
-      setHasSimulatedPlayers(false);
-    }
-  };
-
-  // Simulate answers for current question
-  const simulateCurrentAnswers = async () => {
-    if (!gameSession?.id) {
-      console.error('Cannot simulate answers: no active session');
-      return;
-    }
-    
-    if (!currentQuestion) {
-      console.error('Cannot simulate answers: no current question');
-      return;
-    }
-    
-    if (!isSessionHost) {
-      console.error('Cannot simulate answers: not a host');
-      return;
-    }
-    
-    try {
-      await simulateAnswers(gameSession.id, currentQuestion.id);
-    } catch (error) {
-      console.error('Error simulating answers:', error);
-    }
-  };
-
-  // If quiz is completed, show completion screen
   if (quizCompleted) {
     return (
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-quiz-red-700 to-quiz-red-900 text-white">
@@ -331,24 +268,6 @@ const Quiz = () => {
         <div className="container flex justify-between items-center">
           <h2 className="font-semibold">Quiz Game - Round {currentRound}</h2>
           <div className="flex items-center space-x-4">
-            {isSessionHost && !hasSimulatedPlayers && !showingSummary && !quizCompleted && (
-              <Button
-                onClick={handleAddSimulatedPlayers}
-                variant="outline"
-                className="bg-transparent border-white text-white hover:bg-white/20"
-              >
-                Add 20 Test Players
-              </Button>
-            )}
-            {isSessionHost && hasSimulatedPlayers && !showingSummary && !quizCompleted && currentQuestion && (
-              <Button
-                onClick={simulateCurrentAnswers}
-                variant="outline"
-                className="bg-transparent border-white text-white hover:bg-white/20"
-              >
-                Simulate Answers
-              </Button>
-            )}
             <div className="bg-white/20 px-4 py-2 rounded-full">
               <span className="font-medium">Playing as: </span>
               <span className="font-bold">{nickname}</span>

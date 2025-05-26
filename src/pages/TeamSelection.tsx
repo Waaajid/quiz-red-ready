@@ -1,3 +1,4 @@
+
 import { useQuiz } from "@/hooks/useQuiz";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useEffect, useState } from "react";
 import { toast } from "@/components/ui/use-toast";
-import { Copy } from "lucide-react";
+import { Info } from "lucide-react";
 
 const TeamSelection = () => {
   const { 
@@ -13,7 +14,6 @@ const TeamSelection = () => {
     teams, 
     joinTeam, 
     selectedTeam,
-    startNewSession,
     joinExistingSession,
     gameSession,
     sessionError,
@@ -22,8 +22,6 @@ const TeamSelection = () => {
   const navigate = useNavigate();
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [sessionCode, setSessionCode] = useState<string>('');
-  const [isStartingNewSession, setIsStartingNewSession] = useState(false);
-  const [copiedToClipboard, setCopiedToClipboard] = useState(false);
 
   // Redirect to home if no nickname is set
   useEffect(() => {
@@ -39,25 +37,25 @@ const TeamSelection = () => {
     }
   };
 
-  const handleStartSession = async () => {
-    try {
-      setIsStartingNewSession(true);
-      const sessionId = await startNewSession();
-      setSessionCode(sessionId);
-    } catch (error) {
-      console.error('Failed to start session:', error);
-    } finally {
-      setIsStartingNewSession(false);
-    }
-  };
-
   const handleJoinSession = async () => {
-    if (!sessionCode.trim()) return;
+    if (!sessionCode.trim()) {
+      toast({
+        title: "Session code required",
+        description: "Please enter a session code to join the game",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       await joinExistingSession(sessionCode);
     } catch (error) {
       console.error('Failed to join session:', error);
+      toast({
+        title: "Failed to join session",
+        description: "Please check the session code and try again",
+        variant: "destructive",
+      });
     }
   };
 
@@ -83,7 +81,6 @@ const TeamSelection = () => {
         description: "Redirecting to game setup...",
       });
       
-      // Navigate immediately after successful join
       navigate("/onboarding");
     } catch (error) {
       console.error('Failed to join team:', error);
@@ -95,35 +92,24 @@ const TeamSelection = () => {
     }
   };
 
-  const handleCopySessionCode = async () => {
-    if (gameSession?.id) {
-      try {
-        await navigator.clipboard.writeText(gameSession.id);
-        setCopiedToClipboard(true);
-        toast({
-          title: "Session code copied!",
-          description: "You can now share it with other players.",
-          duration: 2000,
-        });
-        setTimeout(() => setCopiedToClipboard(false), 2000);
-      } catch (err) {
-        toast({
-          title: "Failed to copy",
-          description: "Please try copying the code manually.",
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-quiz-red-700 to-quiz-red-900 text-white">
       <header className="p-4 border-b border-white/10">
         <div className="container flex justify-between items-center">
           <h2 className="font-semibold">Quiz Game - Team Selection</h2>
-          <div className="bg-white/20 px-4 py-2 rounded-full">
-            <span className="font-medium">Playing as: </span>
-            <span className="font-bold">{nickname}</span>
+          <div className="flex items-center space-x-4">
+            <Button
+              onClick={() => navigate("/instructions")}
+              variant="outline"
+              className="bg-transparent border-white text-white hover:bg-white/20"
+            >
+              <Info className="h-4 w-4 mr-2" />
+              How to Play
+            </Button>
+            <div className="bg-white/20 px-4 py-2 rounded-full">
+              <span className="font-medium">Playing as: </span>
+              <span className="font-bold">{nickname}</span>
+            </div>
           </div>
         </div>
       </header>
@@ -132,72 +118,33 @@ const TeamSelection = () => {
         <div className="w-full max-w-4xl">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold mb-4">
-              {!gameSession ? "Join a Quiz Game" : "Game Setup"}
+              {!gameSession ? "Join a Quiz Game" : "Choose Your Team"}
             </h1>
-
-            {/* Show session code prominently if hosting */}
-            {gameSession && isSessionHost && (
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-8 max-w-md mx-auto">
-                <h2 className="text-xl font-semibold mb-4">Share This Game</h2>
-                <div className="space-y-4">
-                  <p className="text-white/80">Share this session code with other players:</p>
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="bg-white/20 px-6 py-3 rounded-lg text-2xl font-mono tracking-wider">
-                      {gameSession.id}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleCopySessionCode}
-                      className={`transition-all ${copiedToClipboard ? 'bg-green-500 text-white' : 'hover:bg-white/20'}`}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {copiedToClipboard && (
-                    <p className="text-green-400 text-sm">Copied to clipboard!</p>
-                  )}
-                </div>
-              </div>
-            )}
 
             {!gameSession ? (
               <div className="space-y-6">
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 max-w-md mx-auto">
-                  <h2 className="text-xl font-bold mb-4">
-                    {isStartingNewSession ? "Creating new session..." : "Join or Start a Session"}
-                  </h2>
+                  <h2 className="text-xl font-bold mb-4">Join Game Session</h2>
                   <div className="space-y-4">
-                    <div className="flex flex-col gap-4">
-                      <div className="flex gap-2">
-                        <Input
-                          type="text"
-                          placeholder="Enter Session Code"
-                          value={sessionCode}
-                          onChange={(e) => setSessionCode(e.target.value)}
-                          className="bg-white/20 border-white/30 text-white placeholder:text-white/70"
-                        />
-                        <Button 
-                          onClick={handleJoinSession}
-                          variant="outline"
-                          className="whitespace-nowrap"
-                        >
-                          Join Session
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-grow border-t border-white/20"></div>
-                        <span className="text-white/60">or</span>
-                        <div className="flex-grow border-t border-white/20"></div>
-                      </div>
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        placeholder="Enter Session Code"
+                        value={sessionCode}
+                        onChange={(e) => setSessionCode(e.target.value)}
+                        className="bg-white/20 border-white/30 text-white placeholder:text-white/70"
+                      />
                       <Button 
-                        onClick={handleStartSession}
+                        onClick={handleJoinSession}
                         variant="outline"
-                        disabled={isStartingNewSession}
+                        className="whitespace-nowrap"
                       >
-                        {isStartingNewSession ? 'Creating...' : 'Start New Game Session'}
+                        Join Game
                       </Button>
                     </div>
+                    <p className="text-sm text-white/70">
+                      Get the session code from your game host
+                    </p>
                   </div>
                 </div>
               </div>
