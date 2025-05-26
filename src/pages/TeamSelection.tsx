@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useEffect, useState } from "react";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { Info } from "lucide-react";
 import LiveTeamMembers from "@/components/LiveTeamMembers";
 
@@ -31,11 +31,14 @@ const TeamSelection = () => {
     }
   }, [nickname, navigate]);
 
-  // Redirect to quiz if game has started
+  // Redirect to team view if team is selected and game not started
   useEffect(() => {
-    if (gameSession && (gameSession.status === 'started' || gameSession.status === 'in-progress')) {
-      if (selectedTeam) {
+    if (gameSession && selectedTeam) {
+      const gameStarted = gameSession.status === 'started' || gameSession.status === 'in-progress';
+      if (gameStarted) {
         navigate("/quiz");
+      } else {
+        navigate("/team-view");
       }
     }
   }, [gameSession, selectedTeam, navigate]);
@@ -88,10 +91,10 @@ const TeamSelection = () => {
       
       toast({
         title: "Team joined successfully!",
-        description: "Redirecting to game setup...",
+        description: "Moving to team view...",
       });
       
-      navigate("/onboarding");
+      navigate("/team-view");
     } catch (error) {
       console.error('Failed to join team:', error);
       toast({

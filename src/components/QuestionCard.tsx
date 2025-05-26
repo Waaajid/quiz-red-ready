@@ -100,7 +100,7 @@ const QuestionCard = ({
                 : 'bg-quiz-red-600 opacity-50'
             }`}
           >
-            {showNext ? "Next Question" : showWaiting ? `Wait ${Math.max(0, timeRemaining)}s...` : "Submit Answer"}
+            {showNext ? "Next Question" : showWaiting ? `Waiting ${Math.max(0, timeRemaining)}s...` : "Submit Answer"}
           </Button>
         </div>
       </CardContent>

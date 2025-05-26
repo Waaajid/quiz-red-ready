@@ -4,8 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
-import { Copy, Users, Trophy, Play } from "lucide-react";
-import { toast } from "@/components/ui/use-toast";
+import { Copy, Users, Trophy, Play, Gift } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 import { startGame } from "@/services/gameSession";
 
 const HostDashboard = () => {
@@ -114,10 +114,6 @@ const HostDashboard = () => {
     return getTotalPlayers() > 0 && !gameStarted;
   };
 
-  const showScratchCard = () => {
-    return gameStarted && roundResults.length > 0;
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-quiz-red-700 to-quiz-red-900 text-white">
       <header className="p-4 border-b border-white/10">
@@ -153,7 +149,7 @@ const HostDashboard = () => {
               Share this code with players to join the game
             </p>
             
-            {/* Start Game Button */}
+            {/* Control Buttons */}
             <div className="flex gap-4">
               <Button
                 onClick={handleStartGame}
@@ -164,14 +160,13 @@ const HostDashboard = () => {
                 {gameStarted ? 'Game Started' : 'Start Game'}
               </Button>
               
-              {showScratchCard() && (
-                <Button
-                  onClick={handleScratchCardGame}
-                  className="bg-purple-600 hover:bg-purple-700"
-                >
-                  Play Scratch Reward
-                </Button>
-              )}
+              <Button
+                onClick={handleScratchCardGame}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Gift className="h-4 w-4 mr-2" />
+                Play Scratch Reward
+              </Button>
             </div>
           </CardContent>
         </Card>

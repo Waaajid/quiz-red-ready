@@ -8,6 +8,7 @@ import { QuizProvider } from "./context/QuizContext";
 import Index from "./pages/Index";
 import Quiz from "./pages/Quiz";
 import TeamSelection from "./pages/TeamSelection";
+import TeamView from "./pages/TeamView";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 import DiceRollPage from "./pages/DiceRollPage";
@@ -27,6 +28,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/team-selection" element={<TeamSelection />} />
+            <Route path="/team-view" element={<TeamView />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/quiz" element={<Quiz />} />
             <Route path="/dice-roll" element={<DiceRollPage />} />
