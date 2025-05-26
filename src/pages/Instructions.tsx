@@ -27,10 +27,10 @@ const Instructions = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4 text-lg">
-                <p className="text-yellow-400 font-semibold">
+                <p className="text-yellow-400 font-semibold text-xl">
                   This is not about correct or incorrect answers.
                 </p>
-                <p className="text-white">
+                <p className="text-white text-xl font-medium">
                   You win by matching your answers with your team's answers.
                 </p>
                 <p className="text-white/80">
@@ -77,7 +77,7 @@ const Instructions = () => {
                   • 3 rounds with 4 questions each
                 </p>
                 <p className="text-white/90">
-                  • 10 seconds to answer each question
+                  • 12 seconds to answer each question
                 </p>
                 <p className="text-white/90">
                   • Teams win rounds by having the most matching answers

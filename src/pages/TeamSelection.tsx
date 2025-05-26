@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useEffect, useState } from "react";
 import { toast } from "@/components/ui/use-toast";
 import { Info } from "lucide-react";
+import LiveTeamMembers from "@/components/LiveTeamMembers";
 
 const TeamSelection = () => {
   const { 
@@ -29,6 +30,15 @@ const TeamSelection = () => {
       navigate("/");
     }
   }, [nickname, navigate]);
+
+  // Redirect to quiz if game has started
+  useEffect(() => {
+    if (gameSession && (gameSession.status === 'started' || gameSession.status === 'in-progress')) {
+      if (selectedTeam) {
+        navigate("/quiz");
+      }
+    }
+  }, [gameSession, selectedTeam, navigate]);
 
   const handleTeamSelect = (teamId: string) => {
     const team = teams.find(t => t.id === teamId);
@@ -157,42 +167,50 @@ const TeamSelection = () => {
                     const isSelected = selectedTeamId === team.id;
                     
                     return (
-                      <Card 
-                        key={team.id}
-                        className={`cursor-pointer transition-all duration-300 transform hover:scale-105 ${
-                          isSelected 
-                            ? 'ring-4 ring-white bg-white/20' 
-                            : 'bg-white/10 hover:bg-white/15'
-                        } ${isFull ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        onClick={() => !isFull && handleTeamSelect(team.id)}
-                      >
-                        <CardHeader className="text-center">
-                          <div className={`w-16 h-16 ${team.color} rounded-full mx-auto mb-4 flex items-center justify-center`}>
-                            <span className="text-2xl font-bold text-white">
-                              {team.name.split(' ')[1][0]}
-                            </span>
-                          </div>
-                          <CardTitle className="text-white text-xl">
-                            {team.name}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-center">
-                          <div className="space-y-2">
-                            <p className="text-quiz-red-100">
-                              {team.playerCount} / {team.maxPlayers} players
-                            </p>
-                            <div className="w-full bg-white/20 rounded-full h-2">
-                              <div 
-                                className={`${team.color} h-2 rounded-full transition-all duration-300`}
-                                style={{ width: `${(team.playerCount / team.maxPlayers) * 100}%` }}
-                              />
+                      <div key={team.id}>
+                        <Card 
+                          className={`cursor-pointer transition-all duration-300 transform hover:scale-105 ${
+                            isSelected 
+                              ? 'ring-4 ring-white bg-white/20' 
+                              : 'bg-white/10 hover:bg-white/15'
+                          } ${isFull ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          onClick={() => !isFull && handleTeamSelect(team.id)}
+                        >
+                          <CardHeader className="text-center">
+                            <div className={`w-16 h-16 ${team.color} rounded-full mx-auto mb-4 flex items-center justify-center`}>
+                              <span className="text-2xl font-bold text-white">
+                                {team.name.split(' ')[1][0]}
+                              </span>
                             </div>
-                            {isFull && (
-                              <p className="text-red-300 font-medium">Team Full</p>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
+                            <CardTitle className="text-white text-xl">
+                              {team.name}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="text-center">
+                            <div className="space-y-2">
+                              <p className="text-quiz-red-100">
+                                {team.playerCount} / {team.maxPlayers} players
+                              </p>
+                              <div className="w-full bg-white/20 rounded-full h-2">
+                                <div 
+                                  className={`${team.color} h-2 rounded-full transition-all duration-300`}
+                                  style={{ width: `${(team.playerCount / team.maxPlayers) * 100}%` }}
+                                />
+                              </div>
+                              {isFull && (
+                                <p className="text-red-300 font-medium">Team Full</p>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                        
+                        {/* Show live team members */}
+                        <LiveTeamMembers 
+                          teamId={team.id}
+                          teamName={team.name}
+                          teamColor={team.color}
+                        />
+                      </div>
                     );
                   })}
                 </div>
