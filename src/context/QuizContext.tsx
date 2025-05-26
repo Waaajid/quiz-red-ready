@@ -7,13 +7,10 @@ import {
   joinGameSession, 
   subscribeToGameSession,
   submitAnswer as submitSessionAnswer,
-  updateGameState,
-  calculateRoundWinners,
   leaveSession,
   GameSession
 } from '../services/gameSession';
 
-// Define types and interfaces
 interface Team {
   id: string;
   name: string;
@@ -422,7 +419,30 @@ export function QuizProvider({ children }: { children: ReactNode }) {
     if (!sessionId) {
       throw new Error('No active session');
     }
-    await updateGameState(sessionId, updates);
+    
+    // Simple implementation of updateGameState
+    const sessionRef = ref(db, `sessions/${sessionId}`);
+    const firebaseUpdates: { [key: string]: any } = {};
+    
+    if (updates.phase) {
+      firebaseUpdates['currentState/phase'] = updates.phase;
+    }
+    if (updates.currentRound !== undefined) {
+      firebaseUpdates.currentRound = updates.currentRound;
+    }
+    if (updates.currentQuestionIndex !== undefined) {
+      firebaseUpdates.currentQuestionIndex = updates.currentQuestionIndex;
+    }
+    if (updates.timeLeft !== undefined) {
+      firebaseUpdates['currentState/timeLeft'] = updates.timeLeft;
+    }
+    if (updates.currentQuestion !== undefined) {
+      firebaseUpdates['currentState/currentQuestion'] = updates.currentQuestion;
+    }
+    
+    firebaseUpdates.lastUpdated = Date.now();
+    
+    await update(sessionRef, firebaseUpdates);
   };
 
   const contextValue: QuizContextProps = {
