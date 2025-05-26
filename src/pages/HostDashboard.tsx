@@ -1,4 +1,3 @@
-
 import { useQuiz } from "@/hooks/useQuiz";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -106,8 +105,10 @@ const HostDashboard = () => {
   };
 
   const getRoundWinner = (round: number) => {
-    const result = roundResults.find(r => r.roundNumber === round);
-    return result?.winningTeam || null;
+    if (!gameSession || !gameSession.roundWinners) return null;
+    const winners = gameSession.roundWinners[round];
+    if (!winners || winners.length === 0) return null;
+    return winners.length === 1 ? winners[0] : `${winners.join(', ')} (Tie)`;
   };
 
   const canStartGame = () => {
@@ -203,40 +204,69 @@ const HostDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Round Results */}
-        {roundResults.length > 0 && (
-          <Card className="bg-white/10 border-white/20">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                <Trophy className="h-5 w-5" />
-                Round Results
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[1, 2, 3].map((round) => {
-                  const winner = getRoundWinner(round);
-                  const isCompleted = winner !== null;
-                  
-                  return (
-                    <div key={round} className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
-                      <span className="font-medium">Round {round}</span>
+        {/* Round Results - Enhanced with real-time winner display */}
+        <Card className="bg-white/10 border-white/20">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Trophy className="h-5 w-5" />
+              Round Results & Winners
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[1, 2, 3].map((round) => {
+                const winner = getRoundWinner(round);
+                const isCompleted = winner !== null;
+                const isCurrentRound = round === currentRound && gameStarted;
+                
+                return (
+                  <div key={round} className="flex items-center justify-between p-4 bg-white/5 rounded-lg border-l-4 border-quiz-red-500">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                        isCompleted ? 'bg-green-600' : isCurrentRound ? 'bg-yellow-600' : 'bg-gray-600'
+                      }`}>
+                        {round}
+                      </div>
+                      <span className="font-medium text-lg">Round {round}</span>
+                    </div>
+                    <div className="text-right">
                       {isCompleted ? (
-                        <span className="text-green-400 font-semibold">
-                          Winner: {teams.find(t => t.name === winner)?.name || winner}
-                        </span>
-                      ) : round === currentRound ? (
-                        <span className="text-yellow-400">In Progress</span>
+                        <div>
+                          <div className="text-green-400 font-bold text-lg">🏆 WINNER</div>
+                          <div className="text-white font-semibold">{winner}</div>
+                        </div>
+                      ) : isCurrentRound ? (
+                        <div className="text-yellow-400 font-semibold">
+                          📍 In Progress
+                        </div>
                       ) : (
-                        <span className="text-white/50">Pending</span>
+                        <div className="text-white/50">
+                          ⏳ Pending
+                        </div>
                       )}
                     </div>
-                  );
-                })}
+                  </div>
+                );
+              })}
+            </div>
+            
+            {gameSession && gameSession.roundWinners && Object.keys(gameSession.roundWinners).length > 0 && (
+              <div className="mt-6 p-4 bg-green-900/20 rounded-lg border border-green-500/30">
+                <h4 className="text-green-400 font-bold mb-2">🎉 Completed Rounds Summary</h4>
+                <div className="space-y-2">
+                  {Object.entries(gameSession.roundWinners).map(([round, winners]) => (
+                    <div key={round} className="flex justify-between items-center">
+                      <span className="text-white/80">Round {round}:</span>
+                      <span className="text-green-400 font-semibold">
+                        {Array.isArray(winners) ? winners.join(', ') : winners}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
       </main>
     </div>
   );

@@ -71,12 +71,14 @@ const Quiz = () => {
         if (sessionRound && sessionRound !== currentRound) {
           console.log('Quiz: Updating round', { from: currentRound, to: sessionRound });
           setCurrentRound(sessionRound);
+          setShowingSummary(false);
         }
         
         if (typeof sessionQuestionIndex === 'number' && sessionQuestionIndex !== currentQuestionIndex) {
           console.log('Quiz: Updating question index', { from: currentQuestionIndex, to: sessionQuestionIndex });
           setCurrentQuestionIndex(sessionQuestionIndex);
           setQuestionKey(prev => prev + 1);
+          setShowingSummary(false);
         }
         
         switch (currentState?.phase) {
@@ -145,6 +147,7 @@ const Quiz = () => {
       if (answer === 'NEXT_QUESTION') {
         console.log('Quiz: Next question signal received');
         if (isSessionHost) {
+          console.log('Quiz: Host advancing to next question via NEXT_QUESTION signal');
           await advanceToNextQuestion(gameSession.id, currentRound, currentQuestionIndex);
         }
         return;
@@ -161,14 +164,19 @@ const Quiz = () => {
           questionId: currentQuestion.id,
           answer: answer
         });
-      }
 
-      // If host, advance to next question automatically after answer submission
-      if (isSessionHost && answer && answer.trim()) {
-        console.log('Quiz: Host advancing to next question');
-        setTimeout(async () => {
-          await advanceToNextQuestion(gameSession.id, currentRound, currentQuestionIndex);
-        }, 1000); // Small delay to ensure answer is saved
+        // CRITICAL FIX: Host automatically advances after answer submission
+        if (isSessionHost) {
+          console.log('Quiz: Host auto-advancing to next question after answer submission');
+          setTimeout(async () => {
+            try {
+              await advanceToNextQuestion(gameSession.id, currentRound, currentQuestionIndex);
+              console.log('Quiz: Successfully advanced to next question');
+            } catch (error) {
+              console.error('Quiz: Error advancing to next question:', error);
+            }
+          }, 1000);
+        }
       }
     } catch (error) {
       console.error('Error submitting answer:', error);
@@ -180,6 +188,11 @@ const Quiz = () => {
       if (currentRound < 3) {
         const nextRound = currentRound + 1;
         console.log('Quiz: Moving to next round', { from: currentRound, to: nextRound });
+        
+        if (isSessionHost) {
+          // Update the session state to start the next round
+          await advanceToNextQuestion(gameSession!.id, currentRound, 3); // Trigger round advancement
+        }
         
         setCurrentRound(nextRound);
         setCurrentQuestionIndex(0);

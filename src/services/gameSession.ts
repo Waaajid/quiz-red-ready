@@ -1,4 +1,3 @@
-
 import { ref, set, onValue, off, get, update } from 'firebase/database';
 import { db } from '../config/firebase';
 
@@ -187,6 +186,8 @@ export const advanceToNextQuestion = async (
   const sessionRef = ref(db, `sessions/${sessionId}`);
   const questionsPerRound = 4;
   
+  console.log('advanceToNextQuestion called:', { sessionId, currentRound, currentQuestionIndex });
+  
   if (currentQuestionIndex < questionsPerRound - 1) {
     // Next question in same round
     const updates = {
@@ -195,8 +196,21 @@ export const advanceToNextQuestion = async (
       'currentState/phase': 'answering',
       lastUpdated: Date.now()
     };
+    console.log('Moving to next question:', updates);
     await update(sessionRef, updates);
   } else if (currentRound < 3) {
+    // Calculate round winners before advancing
+    const sessionSnapshot = await get(sessionRef);
+    const session = sessionSnapshot.val() as GameSession;
+    
+    if (session) {
+      const winners = await calculateRoundWinners(sessionId, currentRound);
+      console.log('Round winners calculated:', winners);
+      
+      // Store round winners
+      await publishRoundWinners(sessionId, currentRound, winners);
+    }
+    
     // Next round
     const updates = {
       currentRound: currentRound + 1,
@@ -205,16 +219,83 @@ export const advanceToNextQuestion = async (
       'currentState/phase': 'round-end',
       lastUpdated: Date.now()
     };
+    console.log('Moving to next round:', updates);
     await update(sessionRef, updates);
   } else {
+    // Calculate final round winners before completing
+    const sessionSnapshot = await get(sessionRef);
+    const session = sessionSnapshot.val() as GameSession;
+    
+    if (session) {
+      const winners = await calculateRoundWinners(sessionId, currentRound);
+      console.log('Final round winners calculated:', winners);
+      
+      // Store final round winners
+      await publishRoundWinners(sessionId, currentRound, winners);
+    }
+    
     // Game complete
     const updates = {
       status: 'completed',
       'currentState/phase': 'completed',
       lastUpdated: Date.now()
     };
+    console.log('Game completed:', updates);
     await update(sessionRef, updates);
   }
+};
+
+export const calculateRoundWinners = async (
+  sessionId: string,
+  roundNumber: number
+): Promise<string[]> => {
+  const sessionRef = ref(db, `sessions/${sessionId}`);
+  const snapshot = await get(sessionRef);
+  const session = snapshot.val() as GameSession;
+  
+  if (!session) return [];
+  
+  // Get all answers for this round
+  const roundAnswers: { [teamId: string]: { [answer: string]: number } } = {};
+  
+  // Count matching answers per team
+  Object.entries(session.players || {}).forEach(([playerId, player]) => {
+    if (player.isHost) return; // Skip host
+    
+    const teamId = player.teamId;
+    if (!teamId) return;
+    
+    // Get answers for this round
+    Object.entries(player.answers || {}).forEach(([questionId, answerData]) => {
+      if (questionId.startsWith(`r${roundNumber}`)) {
+        const answer = answerData.answer?.toLowerCase().trim();
+        if (!answer) return;
+        
+        if (!roundAnswers[teamId]) roundAnswers[teamId] = {};
+        if (!roundAnswers[teamId][answer]) roundAnswers[teamId][answer] = 0;
+        roundAnswers[teamId][answer]++;
+      }
+    });
+  });
+  
+  // Find teams with most matching answers
+  let maxMatches = 0;
+  let winningTeams: string[] = [];
+  
+  Object.entries(roundAnswers).forEach(([teamId, answers]) => {
+    const maxTeamMatches = Math.max(...Object.values(answers));
+    if (maxTeamMatches >= 2) { // Need at least 2 matching answers
+      if (maxTeamMatches > maxMatches) {
+        maxMatches = maxTeamMatches;
+        winningTeams = [session.teams[teamId]?.name || teamId];
+      } else if (maxTeamMatches === maxMatches) {
+        winningTeams.push(session.teams[teamId]?.name || teamId);
+      }
+    }
+  });
+  
+  console.log('Round winners calculation:', { roundNumber, roundAnswers, winningTeams, maxMatches });
+  return winningTeams;
 };
 
 export const publishRoundWinners = async (
