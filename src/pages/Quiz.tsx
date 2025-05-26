@@ -46,6 +46,8 @@ const Quiz = () => {
   
   // Monitor game session state
   useEffect(() => {
+    console.log('Quiz: Game session updated', { gameSession, sessionError });
+    
     if (!gameSession && !sessionError) {
       return;
     }
@@ -58,6 +60,7 @@ const Quiz = () => {
 
     if (gameSession) {
       const { currentState, currentRound: sessionRound, currentQuestionIndex: sessionQuestionIndex, status } = gameSession;
+      console.log('Quiz: Session state', { currentState, sessionRound, sessionQuestionIndex, status });
 
       // Check if game has started
       const started = status === 'started' || status === 'in-progress';
@@ -66,20 +69,24 @@ const Quiz = () => {
 
       if (started) {
         if (sessionRound && sessionRound !== currentRound) {
+          console.log('Quiz: Updating round', { from: currentRound, to: sessionRound });
           setCurrentRound(sessionRound);
         }
         
         if (typeof sessionQuestionIndex === 'number' && sessionQuestionIndex !== currentQuestionIndex) {
+          console.log('Quiz: Updating question index', { from: currentQuestionIndex, to: sessionQuestionIndex });
           setCurrentQuestionIndex(sessionQuestionIndex);
           setQuestionKey(prev => prev + 1);
         }
         
-        switch (currentState.phase) {
+        switch (currentState?.phase) {
           case 'answering': {
+            console.log('Quiz: Phase is answering');
             setShowingSummary(false);
             break;
           }
           case 'round-end': {
+            console.log('Quiz: Phase is round-end');
             setShowingSummary(true);
             if (isSessionHost) {
               processRoundResults(currentRound);
@@ -87,6 +94,7 @@ const Quiz = () => {
             break;
           }
           case 'completed': {
+            console.log('Quiz: Phase is completed');
             setQuizCompleted(true);
             break;
           }
@@ -109,24 +117,42 @@ const Quiz = () => {
   // Redirect if not properly set up
   useEffect(() => {
     if (!nickname) {
+      console.log('Quiz: No nickname, redirecting to home');
       navigate("/");
     } else if (!selectedTeam || (!gameSession && sessionError)) {
+      console.log('Quiz: No team or session error, redirecting to team selection');
       navigate("/team-selection");
     } else if (gameSession) {
       const currentPlayer = gameSession.players[nickname];
       const team = gameSession.teams[currentPlayer?.teamId];
       if (!currentPlayer?.teamId || !team) {
+        console.log('Quiz: Player not properly assigned to team, redirecting');
         navigate("/team-selection");
       }
     }
   }, [nickname, selectedTeam, gameSession, navigate, sessionError]);
 
   const handleAnswerSubmit = async (answer: string, timeRemaining: number) => {
-    if (!currentQuestion || !selectedTeam || !gameSession) return;
+    console.log('Quiz: Answer submitted', { answer, timeRemaining, currentQuestion });
+    
+    if (!currentQuestion || !selectedTeam || !gameSession) {
+      console.log('Quiz: Missing required data for answer submission');
+      return;
+    }
 
     try {
+      // Handle "Next Question" signal
+      if (answer === 'NEXT_QUESTION') {
+        console.log('Quiz: Next question signal received');
+        if (isSessionHost) {
+          await advanceToNextQuestion(gameSession.id, currentRound, currentQuestionIndex);
+        }
+        return;
+      }
+
       // Submit answer to Firebase
-      if (answer) {
+      if (answer && answer.trim()) {
+        console.log('Quiz: Submitting answer to Firebase');
         await submitToFirebase(gameSession.id, nickname, currentQuestion.id, answer, timeRemaining);
         
         submitPlayerAnswer({
@@ -137,9 +163,12 @@ const Quiz = () => {
         });
       }
 
-      // If host, advance to next question
-      if (isSessionHost) {
-        await advanceToNextQuestion(gameSession.id, currentRound, currentQuestionIndex);
+      // If host, advance to next question automatically after answer submission
+      if (isSessionHost && answer && answer.trim()) {
+        console.log('Quiz: Host advancing to next question');
+        setTimeout(async () => {
+          await advanceToNextQuestion(gameSession.id, currentRound, currentQuestionIndex);
+        }, 1000); // Small delay to ensure answer is saved
       }
     } catch (error) {
       console.error('Error submitting answer:', error);
@@ -150,12 +179,14 @@ const Quiz = () => {
     try {
       if (currentRound < 3) {
         const nextRound = currentRound + 1;
+        console.log('Quiz: Moving to next round', { from: currentRound, to: nextRound });
         
         setCurrentRound(nextRound);
         setCurrentQuestionIndex(0);
         setShowingSummary(false);
         setQuestionKey(prev => prev + 1);
       } else {
+        console.log('Quiz: All rounds completed');
         setQuizCompleted(true);
       }
     } catch (error) {

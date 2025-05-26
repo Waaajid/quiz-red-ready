@@ -24,7 +24,7 @@ const Index = () => {
     
     const trimmedInput = inputValue.trim();
     
-    // Check if user entered HOST
+    // Check if user entered HOST (no visible hint about this)
     if (trimmedInput.toUpperCase() === "HOST") {
       setNickname("HOST");
       navigate("/host-dashboard");
@@ -48,7 +48,6 @@ const Index = () => {
           <div className="space-y-2">
             <h1 className="text-4xl font-bold tracking-tight text-white">Quiz Game</h1>
             <p className="text-quiz-red-100">Enter a nickname to get started</p>
-            <p className="text-sm text-quiz-red-200">Type "HOST" to access host dashboard</p>
           </div>
           
           <div className="space-y-4">

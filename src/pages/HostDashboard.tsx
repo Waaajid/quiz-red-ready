@@ -117,8 +117,16 @@ const HostDashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-quiz-red-700 to-quiz-red-900 text-white">
       <header className="p-4 border-b border-white/10">
-        <div className="container">
+        <div className="container flex justify-between items-center">
           <h1 className="text-2xl font-bold">Host Dashboard</h1>
+          {/* Permanent Scratch Card Link - Always Visible to Host */}
+          <Button
+            onClick={handleScratchCardGame}
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            <Gift className="h-4 w-4 mr-2" />
+            Play Scratch Rewards
+          </Button>
         </div>
       </header>
 
@@ -158,14 +166,6 @@ const HostDashboard = () => {
               >
                 <Play className="h-4 w-4 mr-2" />
                 {gameStarted ? 'Game Started' : 'Start Game'}
-              </Button>
-              
-              <Button
-                onClick={handleScratchCardGame}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                <Gift className="h-4 w-4 mr-2" />
-                Play Scratch Reward
               </Button>
             </div>
           </CardContent>

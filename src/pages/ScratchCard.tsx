@@ -1,182 +1,179 @@
 
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Gift, RotateCcw } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
-interface ScratchCardProps {
-  isWinning: boolean;
-  onReveal: (isWinning: boolean) => void;
-  isRevealed: boolean;
+declare global {
+  interface Window {
+    jQuery: any;
+    $: any;
+  }
 }
-
-const ScratchCardComponent = ({ isWinning, onReveal, isRevealed }: ScratchCardProps) => {
-  const [isScratched, setIsScratched] = useState(false);
-
-  const handleScratch = () => {
-    if (!isScratched && !isRevealed) {
-      setIsScratched(true);
-      setTimeout(() => {
-        onReveal(isWinning);
-      }, 500);
-    }
-  };
-
-  return (
-    <div 
-      className={`relative w-32 h-32 rounded-lg cursor-pointer transition-all duration-500 ${
-        isScratched || isRevealed ? 'transform scale-105' : 'hover:scale-105'
-      }`}
-      onClick={handleScratch}
-    >
-      {!isScratched && !isRevealed ? (
-        // Unscratched card
-        <div className="w-full h-full bg-gradient-to-br from-gray-400 to-gray-600 rounded-lg flex items-center justify-center border-2 border-gray-500">
-          <Gift className="h-8 w-8 text-white" />
-        </div>
-      ) : (
-        // Revealed card
-        <div className={`w-full h-full rounded-lg flex items-center justify-center text-white font-bold text-sm text-center p-2 ${
-          isWinning ? 'bg-gradient-to-br from-green-500 to-green-700' : 'bg-gradient-to-br from-red-500 to-red-700'
-        }`}>
-          {isWinning ? "You can log out at 1 PM!" : "Better luck next time!"}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const ScratchCard = () => {
   const navigate = useNavigate();
-  const [currentAttempt, setCurrentAttempt] = useState(1);
-  const [revealedCards, setRevealedCards] = useState<boolean[]>([]);
-  const [gameComplete, setGameComplete] = useState(false);
+  const scratchRef1 = useRef<HTMLDivElement>(null);
+  const scratchRef2 = useRef<HTMLDivElement>(null);
+  const scratchRef3 = useRef<HTMLDivElement>(null);
 
-  // Define winning patterns for each attempt
-  const getWinningPattern = (attempt: number): boolean[] => {
-    switch (attempt) {
-      case 1:
-      case 2:
-        return [true, false, false]; // 1 winning card
-      case 3:
-        return [true, true, false]; // 2 winning cards
-      default:
-        return [false, false, false];
-    }
-  };
+  useEffect(() => {
+    // Load jQuery and wScratchPad
+    const loadScripts = async () => {
+      // Load jQuery
+      if (!window.jQuery) {
+        const jqueryScript = document.createElement('script');
+        jqueryScript.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
+        jqueryScript.onload = () => {
+          // Load wScratchPad after jQuery
+          const scratchScript = document.createElement('script');
+          scratchScript.src = 'https://cdn.jsdelivr.net/npm/wscratchpad@1.0.0/dist/wscratchpad.min.js';
+          scratchScript.onload = () => {
+            initializeScratchCards();
+          };
+          document.head.appendChild(scratchScript);
+        };
+        document.head.appendChild(jqueryScript);
+      } else {
+        initializeScratchCards();
+      }
+    };
 
-  const currentPattern = getWinningPattern(currentAttempt);
+    const initializeScratchCards = () => {
+      const $ = window.jQuery;
+      
+      if (scratchRef1.current) {
+        $(scratchRef1.current).wScratchPad({
+          size: 5,
+          bg: '#cacaca',
+          fg: '#6a994e',
+          realtime: true,
+          scratchMove: function(e: any, percent: number) {
+            if (percent > 50) {
+              $(scratchRef1.current).find('.scratch-content').show();
+            }
+          }
+        });
+      }
 
-  const handleCardReveal = (cardIndex: number, isWinning: boolean) => {
-    const newRevealed = [...revealedCards];
-    newRevealed[cardIndex] = true;
-    setRevealedCards(newRevealed);
+      if (scratchRef2.current) {
+        $(scratchRef2.current).wScratchPad({
+          size: 5,
+          bg: '#cacaca',
+          fg: '#bc4749',
+          realtime: true,
+          scratchMove: function(e: any, percent: number) {
+            if (percent > 50) {
+              $(scratchRef2.current).find('.scratch-content').show();
+            }
+          }
+        });
+      }
 
-    // Check if all cards are revealed
-    if (newRevealed.length === 3 && newRevealed.every(card => card)) {
-      setTimeout(() => {
-        if (currentAttempt < 3) {
-          // Move to next attempt
-          setCurrentAttempt(currentAttempt + 1);
-          setRevealedCards([]);
-        } else {
-          // Game complete
-          setGameComplete(true);
-        }
-      }, 2000);
-    }
-  };
+      if (scratchRef3.current) {
+        $(scratchRef3.current).wScratchPad({
+          size: 5,
+          bg: '#cacaca',
+          fg: '#6a994e',
+          realtime: true,
+          scratchMove: function(e: any, percent: number) {
+            if (percent > 50) {
+              $(scratchRef3.current).find('.scratch-content').show();
+            }
+          }
+        });
+      }
+    };
 
-  const resetGame = () => {
-    setCurrentAttempt(1);
-    setRevealedCards([]);
-    setGameComplete(false);
-  };
+    loadScripts();
+
+    return () => {
+      // Cleanup scripts if needed
+    };
+  }, []);
 
   const handleBackToDashboard = () => {
     navigate("/host-dashboard");
   };
 
-  if (gameComplete) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-quiz-red-700 to-quiz-red-900 text-white flex items-center justify-center">
-        <Card className="bg-white/10 border-white/20 p-8 text-center max-w-md">
-          <CardContent className="space-y-6">
-            <div className="text-6xl">🎉</div>
-            <h1 className="text-2xl font-bold">Scratch Card Game Complete!</h1>
-            <p className="text-white/80">
-              All three attempts have been completed. Thank you for participating!
-            </p>
-            <div className="flex gap-4 justify-center">
-              <Button
-                onClick={resetGame}
-                variant="outline"
-                className="bg-transparent border-white text-white hover:bg-white/20"
-              >
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Play Again
-              </Button>
-              <Button
-                onClick={handleBackToDashboard}
-                className="bg-quiz-red-500 hover:bg-quiz-red-600"
-              >
-                Back to Dashboard
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-quiz-red-700 to-quiz-red-900 text-white">
       <header className="p-4 border-b border-white/10">
-        <div className="container">
-          <h1 className="text-2xl font-bold">Scratch Card Game</h1>
+        <div className="container flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Scratch Card Rewards</h1>
+          <Button
+            onClick={handleBackToDashboard}
+            variant="outline"
+            className="bg-transparent border-white text-white hover:bg-white/20"
+          >
+            Back to Dashboard
+          </Button>
         </div>
       </header>
 
       <main className="container p-6 flex items-center justify-center min-h-[80vh]">
-        <Card className="bg-white/10 border-white/20 p-8 text-center max-w-lg">
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold">Attempt {currentAttempt} of 3</h2>
-              <p className="text-white/80">
-                Choose a card to scratch and reveal your prize!
-              </p>
-              {currentAttempt === 3 && (
-                <p className="text-yellow-400 font-semibold">
-                  Final attempt - better odds!
-                </p>
-              )}
+        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-8 text-center max-w-4xl w-full">
+          <h2 className="text-3xl font-bold mb-6">Scratch to Reveal Your Rewards!</h2>
+          <p className="text-lg text-white/80 mb-8">
+            Scratch the cards below to see what rewards await the winning teams!
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            {/* Scratch Card 1 */}
+            <div className="relative">
+              <h3 className="text-lg font-semibold mb-4">Team Winner Reward</h3>
+              <div 
+                ref={scratchRef1}
+                className="w-64 h-48 mx-auto rounded-lg relative overflow-hidden cursor-pointer"
+                style={{ background: '#cacaca' }}
+              >
+                <div 
+                  className="scratch-content absolute inset-0 flex items-center justify-center p-4 text-center bg-green-600 text-white font-bold text-sm hidden"
+                  style={{ display: 'none' }}
+                >
+                  🎉 You can log out at 1 PM! 🎉
+                </div>
+              </div>
             </div>
 
-            <div className="flex justify-center gap-6">
-              {[0, 1, 2].map((cardIndex) => (
-                <ScratchCardComponent
-                  key={`${currentAttempt}-${cardIndex}`}
-                  isWinning={currentPattern[cardIndex]}
-                  onReveal={(isWinning) => handleCardReveal(cardIndex, isWinning)}
-                  isRevealed={revealedCards[cardIndex] || false}
-                />
-              ))}
+            {/* Scratch Card 2 */}
+            <div className="relative">
+              <h3 className="text-lg font-semibold mb-4">Participation Reward</h3>
+              <div 
+                ref={scratchRef2}
+                className="w-64 h-48 mx-auto rounded-lg relative overflow-hidden cursor-pointer"
+                style={{ background: '#cacaca' }}
+              >
+                <div 
+                  className="scratch-content absolute inset-0 flex items-center justify-center p-4 text-center bg-red-600 text-white font-bold text-sm hidden"
+                  style={{ display: 'none' }}
+                >
+                  🍕 Free lunch voucher! 🍕
+                </div>
+              </div>
             </div>
 
-            <div className="text-sm text-white/60">
-              {revealedCards.filter(Boolean).length} / 3 cards revealed
+            {/* Scratch Card 3 */}
+            <div className="relative">
+              <h3 className="text-lg font-semibold mb-4">Special Bonus</h3>
+              <div 
+                ref={scratchRef3}
+                className="w-64 h-48 mx-auto rounded-lg relative overflow-hidden cursor-pointer"
+                style={{ background: '#cacaca' }}
+              >
+                <div 
+                  className="scratch-content absolute inset-0 flex items-center justify-center p-4 text-center bg-green-600 text-white font-bold text-sm hidden"
+                  style={{ display: 'none' }}
+                >
+                  ☕ Free coffee for a week! ☕
+                </div>
+              </div>
             </div>
+          </div>
 
-            <Button
-              onClick={handleBackToDashboard}
-              variant="outline"
-              className="bg-transparent border-white text-white hover:bg-white/20"
-            >
-              Back to Dashboard
-            </Button>
-          </CardContent>
-        </Card>
+          <div className="text-sm text-white/60">
+            Scratch each card by moving your mouse or finger across the surface
+          </div>
+        </div>
       </main>
     </div>
   );

@@ -25,6 +25,7 @@ const QuestionCard = ({
   
   // Reset states when question changes
   useEffect(() => {
+    console.log('QuestionCard: Question changed', { questionNumber, questionText });
     setAnswer('');
     setIsAnswered(false);
     setTimerComplete(false);
@@ -32,8 +33,10 @@ const QuestionCard = ({
   }, [questionNumber, questionText, timerSeconds]);
   
   const handleTimerComplete = () => {
+    console.log('QuestionCard: Timer completed');
     setTimerComplete(true);
     if (!isAnswered) {
+      console.log('QuestionCard: Auto-submitting empty answer');
       // Auto-submit empty answer when timer completes
       onSubmit('', 0);
     }
@@ -41,14 +44,16 @@ const QuestionCard = ({
   
   const handleSubmit = () => {
     if (!isAnswered && answer.trim()) {
+      console.log('QuestionCard: Submitting answer', { answer: answer.trim(), timeRemaining });
       setIsAnswered(true);
       onSubmit(answer.trim(), timeRemaining);
     }
   };
   
   const handleNext = () => {
+    console.log('QuestionCard: Next button clicked');
     if (timerComplete) {
-      onSubmit('', 0); // Signal to advance to next question
+      onSubmit('NEXT_QUESTION', 0); // Signal to advance to next question
     }
   };
   

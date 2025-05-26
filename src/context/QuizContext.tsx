@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { ref, set, onValue, off, get, update } from 'firebase/database';
 import { db } from '../config/firebase';
@@ -160,6 +159,7 @@ export function QuizProvider({ children }: { children: ReactNode }) {
     }
   }, [gameSession]);
 
+  // Updated questions list as requested
   const questions: Question[] = [
     { id: 'r1q1', text: 'What is the company results party date? (dd/mm)', roundId: 1 },
     { id: 'r1q2', text: 'What is the missing domain in https://???.conducttr.com/projects?', roundId: 1 },
